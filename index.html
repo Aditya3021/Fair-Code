@@ -350,6 +350,30 @@
   }
   :focus:not(:focus-visible) { outline: none; }
 
+  .skip-link {
+    position: absolute;
+    left: -999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    z-index: 9999;
+  }
+  .skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    background: var(--bg);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    font-size: 1rem;
+    text-decoration: none;
+  }
+
   ::selection { background: var(--accent); color: var(--bg); }
 
   body {
@@ -1730,6 +1754,7 @@
 <script defer src="https://cloud.umami.is/script.js" data-website-id="84e0aebf-44e1-466e-b2c6-62f75e1c36c7"></script>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
 
 <div id="scroll-progress" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
@@ -1794,6 +1819,8 @@
     </div>
   </div>
 </div>
+
+<main id="main" tabindex="-1">
 
 <!-- HERO -->
 <section class="hero" id="home" aria-labelledby="hero-heading">
@@ -3139,6 +3166,8 @@
     </details>
   </div>
 </section>
+
+</main>
 
 <button id="back-to-top" aria-label="Back to top"></button>
 

@@ -7,7 +7,7 @@
 ![Phase 3](https://img.shields.io/badge/Phase%203-In%20Progress-yellow?style=flat-square)
 ![Phase 4](https://img.shields.io/badge/Phase%204-In%20Progress-yellow?style=flat-square)
 ![Phase 5](https://img.shields.io/badge/Phase%205-In%20Progress-yellow?style=flat-square)
-![Phase 6](https://img.shields.io/badge/Phase%206-Paper%20In%20Review-orange?style=flat-square)
+![Phase 6](https://img.shields.io/badge/Phase%206-Paused%20%2D%20Retargeted-lightgrey?style=flat-square)
 
 This is the public roadmap for Fair Code. It tracks what has been built, what is actively in progress, and what comes next.
 
@@ -27,7 +27,7 @@ Fair Code is an open-source responsible AI platform explaining algorithmic bias,
 
 | Stars | Contributors | Forks | Watching | Social Reach | Countries | Audits | Explainers | CI |
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| 46 | 29 | 33 | 8 | 30K+ | 20 | 7 | 61 | ✅ every push/PR |
+| 48 | 30 | 45 | 8 | 30K+ | 20 | 7 | 61 | ✅ every push/PR |
 
 > The earlier paper freeze has lifted - the real paper, with fresh results, is now planned for next
 > year. `paper/results-frozen/` (tag `v1.0-paper`, commit `bbef2ba`) is kept as a reference snapshot.
@@ -44,7 +44,7 @@ Fair Code is an open-source responsible AI platform explaining algorithmic bias,
 
 ## Phase 1 - Bias Glossary and Beginner Explainers ✅
 
-**Status: Foundational library complete - 61 explainers published, expanding toward a 60+ library**
+**Status: Foundational library complete - 61 explainers published, past the original 60+ target, working toward 65+**
 
 Build the foundational vocabulary and explain core fairness concepts clearly enough for a non-technical reader.
 
@@ -136,7 +136,7 @@ Each audit follows the same pipeline: train a biased model → measure the fairn
 
 ## Phase 4 - Contributor Expansion 🔄 In Progress
 
-**Status: Goal exceeded - 29 external contributors, past the original 15+ target**
+**Status: Goal exceeded - 40 external contributors, past the original 15+ target**
 
 Goal: grow to 15+ contributors with quality-controlled contributions.
 
@@ -147,7 +147,7 @@ Goal: grow to 15+ contributors with quality-controlled contributions.
 - [x] CI pipeline (all audit scripts run on push/PR)
 - [x] Good-first-issue and help-wanted labels
 - [x] First-interaction workflow (greets new contributors)
-- [ ] Target: 10–15 labelled issues open at all times (a moving snapshot, not a maintained invariant - no automated mechanism keeps it true over time)
+- [ ] Target: 10–15 labelled issues open at all times (currently 19 - a moving snapshot, not a maintained invariant; no automated mechanism keeps it true over time)
 - [x] Contributor list in README
 - [x] METRICS.md tracking contributor growth weekly
 

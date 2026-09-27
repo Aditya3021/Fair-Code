@@ -23,6 +23,20 @@ Another self-filed, self-fixed sweep - 19 issues found through direct verificati
 committed individually - followed by a round of community PRs closing several of the replenishment
 issues filed alongside it. Not tagged as a formal release.
 
+Two further self-filed, self-fixed sweeps landed later in this same version: 14 issues (#695-#709),
+then 11 more (#718-#728) - each independently verified and committed on its own, covering doc/number
+drift, a profiler dispatch bug, a flaky test, a stale version pin, and a full `results/`
+regeneration once drift turned out to reach past the one audit it was first noticed in. The larger
+fix moved AI Fair Recruitment's headline gap from 4.51% to 4.03% (see below) and cascaded into
+README.md, index.html, a notebook, and 7 explainers that cited the old figures as fact. Both sweeps
+replenished the issue backlog afterward (11 issues, then 6, all independently researched); a further
+pass corrected `CONTRIBUTORS.md`'s contributor count (29 -> 40, catching a real merged-PR contributor,
+`SatvikMishra08`, missing from the file entirely) and refreshed every stats table (`README.md`,
+`METRICS.md`, `ROADMAP.md`) against live GitHub numbers. See `METRICS.md`'s 2026-W39 note for the
+full account, including the 9 audit-domain proposals that were reopened, then closed again same-day
+once the maintainer decided not to track new audits as repo-requested work for now - replaced with
+9 feature-request issues grounded in real CLI/web-profiler gaps instead.
+
 ### Fixed
 - **`faircode profile` had no guard against reading both the primary input and `--reference`/`--proxy-hints-with` from stdin** (closes #615, by [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [#634](https://github.com/yakew7/Fair-Code/pull/634)) - a stream can only be read once; both cases now get a clear error instead of a confusing "No columns to parse from file" that misleadingly blamed the wrong read.
 - **README.md's audit swap-list was missing `"Tenant Screening"` entirely** (closes #627, by [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [#633](https://github.com/yakew7/Fair-Code/pull/633)) - "all six projects" corrected to "seven", and the 7th audit added to the list itself, not just the count.
@@ -47,6 +61,12 @@ issues filed alongside it. Not tagged as a formal release.
 - **A demographic dimension with zero observed groups scored `overall_score=0`, grade `"F"`, instead of being excluded as unmeasured** (closes #577) - the same "missing measurement != score zero" principle #449 already established for a profile with zero *detected* dimensions, one level down; documented in `faircode/SPEC.md` section 5 for both engines.
 - **Web profiler's `parseReference()` accepted malformed share values (`"60abc"`, `"1e1junk"`) that `faircode.profiler.parse_reference`'s strict `float()` rejects** (closes #576) - `parseFloat` parses only a leading numeric prefix; now requires the whole string to be a valid number.
 - **Web profiler's `isMissing()` trimmed whitespace before checking `NA_TOKENS`, unlike pandas** (closes #575) - `" NA "` (with surrounding spaces) is a literal, non-missing value to pandas; the JS engine silently folded it into `missing_pct` instead.
+- **`AI Fair Recruitment/unfair.py`/`fair.py` mislabeled the dataset's third Gender category (Other) as "Female"** (closes #718) - a `get_dummies(drop_first=True)` column-name substring match silently folded Other into the Female bucket; now filters on the real `Gender` column directly. Moved the headline gap from 4.51% to 4.03% and the mitigated-model reduction from 97.3% to 96.1%, cascading into README.md, index.html, `AI Fair Recruitment/README.md`, `notebooks/02_hiring_bias_audit.ipynb`, and 7 explainers.
+- **`results/` hadn't been regenerated since 24 Jul, predating several `faircode/` changes** (closes #708) - a fresh `faircode benchmark` run under the exact pinned environment showed real drift beyond the one row originally spot-checked (German Credit Lending's `logistic_regression` rows, several `post_processing` rows); regenerated all three CSVs.
+- **`render_markdown()`/`renderMarkdown()` had no ordered-list support** (closes #726) - a numbered list either flattened into one run-on paragraph or fragmented into several wrongly-renumbered ones across 9 explainer pages; also fixed a related bug where a blank line between same-type list items ended the list instead of just the paragraph (a "loose" list is still one list in CommonMark).
+- **Two different notebooks were both "notebook 07"** (closes #720) - `07_tenant_screening_bias_audit.ipynb` reused a number `07_intersectional_bias_audit.ipynb` had already taken the day before; renamed to `08_tenant_screening_bias_audit.ipynb`.
+- **`profiler-ui.js`/`profiler-compare.js` accepted a file by MIME type but dispatched on filename extension only** (closes #700) - a JSON or xlsx file accepted via `file.type` but lacking the matching extension was silently misparsed into a garbage table instead of erroring.
+- **`CONTRIBUTORS.md`'s tracked contributor count had fallen behind its own full list** (closes #728) - two real merged-PR contributors, `saikeerthanakavuri` (#710) and `SatvikMishra08` (#693), were missing from the file entirely; corrected the count from the incrementally-tracked "29" to the verified full-list count of 40.
 
 ## [2.2.0] - 13 Sep 2026
 

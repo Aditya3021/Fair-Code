@@ -707,12 +707,17 @@
   }
 
   // ── Init ────────────────────────────────────────────────────────────────
-  wireSlot('A', dropA, fileA, nameAEl);
-  wireSlot('B', dropB, fileB, nameBEl);
-  sampleBtn.addEventListener('click', function () {
+  function loadSampleComparison() {
     setSlot('A', E.parseCSV(buildSample('A')), 'sample-baseline.csv', dropA, nameAEl);
     setSlot('B', E.parseCSV(buildSample('B')), 'sample-current.csv', dropB, nameBEl);
-  });
+  }
+
+  wireSlot('A', dropA, fileA, nameAEl);
+  wireSlot('B', dropB, fileB, nameBEl);
+  sampleBtn.addEventListener('click', loadSampleComparison);
+  if (new URLSearchParams(window.location.search).get('demo') === 'compare') {
+    loadSampleComparison();
+  }
   downloadHtmlBtn.addEventListener('click', downloadCompareHtmlReport);
   copyJsonBtn.addEventListener('click', copyCompareResultAsJSON);
 })();

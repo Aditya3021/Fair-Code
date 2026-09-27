@@ -793,9 +793,11 @@
     }
   }
 
-  // Shareable demo link: profiler.html?demo loads the sample automatically.
+  // Shareable demo link: profiler.html?demo loads the profile sample automatically.
+  // Reserve ?demo=compare for the two-dataset sample handled by profiler-compare.js.
   // Placed last so all declarations above (e.g. GRADE_COLOR) are initialized.
-  if (/(?:\?|&)demo\b/.test(window.location.search)) {
+  var demoMode = new URLSearchParams(window.location.search).get('demo');
+  if (demoMode !== null && demoMode !== 'compare') {
     runText(buildSampleCSV(), 'sample-health-data.csv');
   }
 })();

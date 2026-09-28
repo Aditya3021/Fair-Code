@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.thefaircode.xyz/</loc>
-    <lastmod>2026-09-26</lastmod>
+    <lastmod>2026-09-27</lastmod>
   </url>
   <url>
     <loc>https://www.thefaircode.xyz/profiler.html</loc>
@@ -251,5 +251,8 @@
   <url>
     <loc>https://www.thefaircode.xyz/explainers/reject-option-classification.html</loc>
     <lastmod>2026-09-10</lastmod>
+  </url>
+  <url>
+    <loc>https://www.thefaircode.xyz/explainers/algorithmic-recourse.html</loc>
   </url>
 </urlset>

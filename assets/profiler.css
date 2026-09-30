@@ -233,7 +233,13 @@
 .bar-row.under .bar-label::after {
   content: ' ⚑'; color: var(--accent);
 }
-.dim-more { font-size: 12px; color: var(--muted); margin-top: 8px; font-style: italic; }
+.dim-extra-groups { margin-top: 2px; }
+.dim-more-btn {
+  display: block; margin-top: 8px; padding: 2px 0; border: none; background: none;
+  font-size: 12px; font-family: inherit; color: var(--accent3); cursor: pointer; text-decoration: underline;
+}
+.dim-more-btn:hover { color: var(--accent); }
+.dim-more-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ── Reference baseline (issue #56) ──────────────────── */
 .reference-status { font-family: var(--mono); font-size: 12px; color: var(--accent3); align-self: center; }

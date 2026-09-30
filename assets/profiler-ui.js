@@ -290,7 +290,7 @@
       '<span class="dim-score">' + d.dimension_score + '/100</span></div>';
 
     var maxShare = d.groups.length ? d.groups[0].share : 1;
-    var bars = d.groups.slice(0, DISPLAY_GROUPS).map(function (g) {
+    function barRow(g) {
       var under = d.under_represented.indexOf(g.label) !== -1 ? ' under' : '';
       var w = maxShare > 0 ? (g.share / maxShare) * 100 : 0;
       var ci = (g.ci_low != null && g.ci_high != null)
@@ -306,10 +306,15 @@
         '<span class="bar-pct">' + pct(g.share) + ' (' + g.count.toLocaleString() + ')</span>' +
         ci + small +
         '</div>';
-    }).join('');
-
-    var more = d.groups.length > DISPLAY_GROUPS
-      ? '<div class="dim-more">… and ' + (d.groups.length - DISPLAY_GROUPS) + ' more groups</div>'
+    }
+    var bars = d.groups.slice(0, DISPLAY_GROUPS).map(barRow).join('');
+    var extraGroups = d.groups.slice(DISPLAY_GROUPS);
+    // #740: the extra groups are rendered up front (just hidden), so toggling
+    // is a plain attribute flip - no re-render, no re-fetching group data.
+    var more = extraGroups.length
+      ? '<div class="dim-extra-groups" hidden>' + extraGroups.map(barRow).join('') + '</div>' +
+        '<button type="button" class="dim-more-btn" aria-expanded="false">Show ' +
+          extraGroups.length + ' more group' + (extraGroups.length === 1 ? '' : 's') + '</button>'
       : '';
 
     var meta = [];
@@ -320,7 +325,7 @@
 
     var ref = '';
     if (d.reference) {
-      var refRows = d.reference.groups.slice(0, DISPLAY_GROUPS).map(function (g) {
+      function refRow(g) {
         var dCls = g.delta < 0 ? 'under' : g.delta > 0 ? 'over' : '';
         return '<div class="ref-row">' +
           '<span class="ref-label" title="' + esc(g.label) + '">' + esc(g.label) + '</span>' +
@@ -328,13 +333,32 @@
           '<span class="ref-delta ' + dCls + '">' +
             (g.delta >= 0 ? '+' : '') + (g.delta * 100).toFixed(1) + ' pp</span>' +
           '</div>';
-      }).join('');
+      }
+      var refRows = d.reference.groups.slice(0, DISPLAY_GROUPS).map(refRow).join('');
+      var extraRefGroups = d.reference.groups.slice(DISPLAY_GROUPS);
+      var refMore = extraRefGroups.length
+        ? '<div class="dim-extra-groups" hidden>' + extraRefGroups.map(refRow).join('') + '</div>' +
+          '<button type="button" class="dim-more-btn" aria-expanded="false">Show ' +
+            extraRefGroups.length + ' more group' + (extraRefGroups.length === 1 ? '' : 's') + '</button>'
+        : '';
       ref = '<div class="dim-reference"><div class="dim-reference-head">vs reference · ' +
-        'deviation ' + pct(d.reference.deviation) + '</div>' + refRows + '</div>';
+        'deviation ' + pct(d.reference.deviation) + '</div>' + refRows + refMore + '</div>';
     }
 
     card.innerHTML = head + bars + more +
       (meta.length ? '<div class="dim-meta">' + meta.join('  ·  ') + '</div>' : '') + ref;
+
+    Array.prototype.forEach.call(card.querySelectorAll('.dim-more-btn'), function (btn) {
+      var extra = btn.previousElementSibling;
+      var shownLabel = btn.textContent;
+      var hiddenLabel = 'Show fewer groups';
+      btn.addEventListener('click', function () {
+        var expanded = btn.getAttribute('aria-expanded') === 'true';
+        extra.hidden = expanded;
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.textContent = expanded ? shownLabel : hiddenLabel;
+      });
+    });
     return card;
   }
 

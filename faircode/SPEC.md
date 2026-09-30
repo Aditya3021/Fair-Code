@@ -137,7 +137,10 @@ and against every other held-out column, without needing it back in the profiled
 `PATH`'s rows must align 1:1 (same order) with the profiled dataset - there is no join key, so a
 mismatched row count is a hard error rather than a silently wrong result. Programmatically,
 `proxy_hints(df, dimensions, held_out={"race": pd.Series(...)})` does the same thing directly.
-Currently `profile`-only; `compare`'s `--proxy-hints` does not accept `--proxy-hints-with`.
+`compare`'s `--proxy-hints` accepts the same idea per side - `--proxy-hints-with-a PATH=COLUMN`
+and `--proxy-hints-with-b PATH=COLUMN` (each repeatable), aligned to `csv_a`/`csv_b` respectively -
+added in #737. The MCP `compare_datasets` tool does not yet expose a held-out-column equivalent
+(only the standalone `proxy_hints` tool's `held_out_with` does).
 
 ---
 

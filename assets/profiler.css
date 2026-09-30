@@ -273,6 +273,22 @@
 }
 .inter-cell.empty { border-color: var(--accent); color: var(--accent); }
 
+/* ── Proxy-hint detection (issue #738) ───────────────── */
+.proxy-hints-block { margin-top: 20px; }
+.proxy-hints-btn {
+  font-family: var(--mono); font-size: 13px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border2); border-radius: 6px; padding: 8px 16px; cursor: pointer;
+}
+.proxy-hints-btn:hover { border-color: var(--accent); }
+.proxy-hint-list { margin-top: 12px; }
+.proxy-hint-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 13px; padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.proxy-hint-row:last-child { border-bottom: none; }
+.proxy-hint-pair { color: var(--text); }
+.proxy-hint-stats { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+
 /* ── Column mapping (manual override) ────────────────── */
 .mapping-block {
   margin-top: 32px;

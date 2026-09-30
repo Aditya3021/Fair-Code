@@ -115,8 +115,14 @@ An optional pass (`faircode profile/compare … --proxy-hints`) runs a chi-squar
 (`scipy.stats.chi2_contingency`) over every pair of detected dimensions and reports pairs with
 `p < 0.05`, each with its p-value and Cramér's V effect size, most-significant first. It surfaces
 "this column may be a proxy for that protected attribute" - the same pattern the bias audits use.
-This is **Python/CLI-only** (needs the optional `scipy` extra) and never affects the score, so it is
-intentionally **not** part of the JS engine; the two engines stay bit-for-bit identical without it.
+The Python/CLI path needs the optional `scipy` extra. It never affects the score, so it is
+intentionally **not** part of `profile()`/`compare()`'s bit-for-bit parity contract between the two
+engines - but as of #738, the web profiler has its own opt-in JS port of the same chi-squared test
+(`FairCodeProfiler.proxyHints()` in `assets/profiler-engine.js`, wired to a "Check for proxy columns"
+button below a profile's results), so this is no longer a CLI-only capability - it's just a
+separate, non-parity-tested module in each engine, exercised by cross-checking known-correlated and
+known-unrelated fixtures against `scipy.stats.chi2_contingency` (`tests/test_js_parity.py`) rather
+than by the bit-for-bit parity assertion the rest of this file describes.
 
 **Limitation - a dropped column is invisible by construction.** `proxy_hints()` only tests pairs
 drawn from `dimensions`, the columns actually present in the profiled data. If a protected attribute

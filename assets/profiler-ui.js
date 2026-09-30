@@ -31,6 +31,7 @@
   var referenceClearBtn = document.getElementById('referenceClearBtn');
   var referenceInput = document.getElementById('referenceInput');
   var referenceStatus = document.getElementById('referenceStatus');
+  var proxyHintsBtn = document.getElementById('proxyHintsBtn');
   var thresholdControls = document.getElementById('thresholdControls');
   var thresholdInputs = thresholdControls ?
     Array.prototype.slice.call(thresholdControls.querySelectorAll('[data-opt]')) : [];
@@ -111,6 +112,7 @@
   });
   downloadHtmlBtn.addEventListener('click', downloadHtmlReport);
   copyJsonBtn.addEventListener('click', copyResultAsJSON);
+  proxyHintsBtn.addEventListener('click', renderProxyHints);
 
   function readFile(file) {
     var okExt = /\.(csv|tsv|json|xlsx)$/i.test(file.name);
@@ -269,6 +271,14 @@
     // Intersections
     renderIntersections(r);
 
+    // Proxy hints (issue #738): opt-in, computed on demand, not on every
+    // render - the chi-squared pass over every dimension pair is skippable
+    // work most visits never need.
+    var proxyBlock = document.getElementById('proxyHintsBlock');
+    var proxyResults = document.getElementById('proxyHintsResults');
+    proxyResults.innerHTML = '';
+    proxyBlock.hidden = r.dimensions.length < 2;
+
     results.hidden = false;
     if (scroll) {
       results.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -388,6 +398,31 @@
       wrap.appendChild(el);
     });
     host.appendChild(wrap);
+  }
+
+  // ── Proxy-hint detection (issue #738) ────────────────────────────────────
+  // Opt-in: computed on click, not on every render, since the chi-squared
+  // pass over every dimension pair is work most visits never ask for.
+  function renderProxyHints() {
+    if (!currentTable || !currentResult) return;
+    var host = document.getElementById('proxyHintsResults');
+    host.innerHTML = '';
+    var hints = E.proxyHints(currentTable, currentResult.dimensions);
+    if (!hints.length) {
+      host.innerHTML = '<p class="section-note">No column pairs are significantly associated (p &lt; 0.05).</p>';
+      return;
+    }
+    var list = document.createElement('div');
+    list.className = 'proxy-hint-list';
+    hints.forEach(function (h) {
+      var row = document.createElement('div');
+      row.className = 'proxy-hint-row';
+      row.innerHTML = '<span class="proxy-hint-pair">' + esc(h.a) + ' × ' + esc(h.b) + '</span>' +
+        '<span class="proxy-hint-stats">p ' + h.p_value.toExponential(2) +
+        ' · Cramer’s V ' + h.cramers_v.toFixed(4) + '</span>';
+      list.appendChild(row);
+    });
+    host.appendChild(list);
   }
 
   // ── Column mapping (manual override, issue #62) ─────────────────────────

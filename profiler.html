@@ -175,8 +175,8 @@
         <p class="dropzone-title">Drop a CSV, TSV, JSON, or Excel file here, or <span class="link">browse</span></p>
         <p class="dropzone-hint" id="dropzoneHint">Comma- or tab-separated values with a header row, JSON
         (records or split orientation), or an .xlsx workbook (first sheet). (Parquet files: use
-        <code>faircode profile data.parquet</code> from the CLI.) Proxy-hint detection: use
-        <code>faircode profile/compare --proxy-hints</code> from the CLI.</p>
+        <code>faircode profile data.parquet</code> from the CLI.) Proxy-hint detection is available
+        below the results, or from the CLI with <code>faircode profile/compare --proxy-hints</code>.</p>
       </div>
     </section>
     <button class="sample-btn" id="sampleBtn" type="button">Try it with a sample dataset</button>
@@ -280,6 +280,17 @@
         </div>
         <p class="section-note" id="intersectionNote"></p>
         <div id="intersections"></div>
+      </div>
+
+      <div class="proxy-hints-block" id="proxyHintsBlock" hidden>
+        <h3 class="section-title">Proxy-hint detection</h3>
+        <p class="section-note">
+          Opt-in chi-squared check for column pairs strongly associated with each other - a
+          "this column may be a proxy for a protected attribute" signal. Informational only;
+          it never affects the score above.
+        </p>
+        <button type="button" class="proxy-hints-btn" id="proxyHintsBtn">Check for proxy columns</button>
+        <div id="proxyHintsResults"></div>
       </div>
     </section>
 

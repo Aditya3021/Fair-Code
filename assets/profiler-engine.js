@@ -766,6 +766,138 @@
     return [{ dims: [a.name, b.name], cells: cells }];
   }
 
+  // ── Proxy-hint detection (issue #738) ──────────────────────────────────
+  // Chi-squared test of independence over every pair of detected dimensions,
+  // flagging pairs strongly associated with each other - "this column may be
+  // a proxy for that protected attribute" - the same informational check the
+  // CLI's `--proxy-hints` runs via faircode/proxy.py's proxy_hints(). This is
+  // NOT part of profile()/compare(): it is opt-in, never touches the score,
+  // and is not covered by the bit-for-bit parity test between this engine
+  // and faircode/profiler.py - it just needs to exist and be reasonable, so
+  // it reuses the same labelize() this engine already has for intersections.
+  var PROXY_ALPHA = 0.05;
+
+  // Regularized incomplete gamma functions (Numerical Recipes gammp/gammq),
+  // used below to get a chi-squared p-value without scipy - there is no
+  // other chi-squared CDF anywhere in this file.
+  function logGamma(x) {
+    var cof = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+               -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, tmp = x + 5.5, ser = 1.000000000190015, j;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (j = 0; j < 6; j++) { y += 1; ser += cof[j] / y; }
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+
+  function gammaSeriesP(a, x) {
+    var ITMAX = 100, EPS = 3e-7, ap = a, sum = 1 / a, del = sum, n;
+    for (n = 1; n <= ITMAX; n++) {
+      ap += 1;
+      del *= x / ap;
+      sum += del;
+      if (Math.abs(del) < Math.abs(sum) * EPS) break;
+    }
+    return sum * Math.exp(-x + a * Math.log(x) - logGamma(a));
+  }
+
+  function gammaContinuedFractionQ(a, x) {
+    var ITMAX = 100, EPS = 3e-7, FPMIN = 1e-30;
+    var b = x + 1 - a, c = 1 / FPMIN, d = 1 / b, h = d, i, an, delta;
+    for (i = 1; i <= ITMAX; i++) {
+      an = -i * (i - a);
+      b += 2;
+      d = an * d + b;
+      if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = b + an / c;
+      if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d;
+      delta = d * c;
+      h *= delta;
+      if (Math.abs(delta - 1) < EPS) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - logGamma(a)) * h;
+  }
+
+  function regularizedGammaQ(a, x) {
+    if (x < 0 || a <= 0) return NaN;
+    if (x === 0) return 1;
+    return x < a + 1 ? 1 - gammaSeriesP(a, x) : gammaContinuedFractionQ(a, x);
+  }
+
+  function chiSquarePValue(chi2, dof) {
+    if (chi2 <= 0 || dof <= 0) return 1;
+    return regularizedGammaQ(dof / 2, chi2 / 2);
+  }
+
+  function proxyHints(table, dimensions, alpha) {
+    if (alpha === undefined) alpha = PROXY_ALPHA;
+    var labelized = {}, i, j, k;
+    dimensions.forEach(function (d) { labelized[d.name] = labelize(table, d.name, d.kind); });
+    var names = Object.keys(labelized);
+    var nTotal = table.rows.length;
+    var hints = [];
+
+    for (i = 0; i < names.length; i++) {
+      for (j = i + 1; j < names.length; j++) {
+        var nameA = names[i], nameB = names[j];
+        var la = labelized[nameA], lb = labelized[nameB];
+
+        var ct = Object.create(null), aVals = Object.create(null), bVals = Object.create(null);
+        for (k = 0; k < nTotal; k++) {
+          if (la[k] === null || lb[k] === null) continue;
+          aVals[la[k]] = 1; bVals[lb[k]] = 1;
+          var key = la[k] + '\0' + lb[k];
+          ct[key] = (ct[key] || 0) + 1;
+        }
+        var aKeys = Object.keys(aVals), bKeys = Object.keys(bVals);
+        if (aKeys.length < 2 || bKeys.length < 2) continue;
+
+        var rowTotals = {}, colTotals = {}, n = 0;
+        aKeys.forEach(function (av) { rowTotals[av] = 0; });
+        bKeys.forEach(function (bv) { colTotals[bv] = 0; });
+        aKeys.forEach(function (av) {
+          bKeys.forEach(function (bv) {
+            var count = ct[av + '\0' + bv] || 0;
+            rowTotals[av] += count;
+            colTotals[bv] += count;
+            n += count;
+          });
+        });
+        if (!n) continue;
+
+        // scipy.stats.chi2_contingency's default correction=True: Yates'
+        // continuity correction applies only when dof === 1 (a 2x2 table).
+        var dof = (aKeys.length - 1) * (bKeys.length - 1);
+        var correction = dof === 1;
+        var chi2 = 0;
+        aKeys.forEach(function (av) {
+          bKeys.forEach(function (bv) {
+            var observed = ct[av + '\0' + bv] || 0;
+            var expected = (rowTotals[av] * colTotals[bv]) / n;
+            if (!expected) return;
+            var diff = Math.abs(observed - expected);
+            if (correction) diff = Math.max(0, diff - 0.5);
+            chi2 += (diff * diff) / expected;
+          });
+        });
+
+        var pValue = chiSquarePValue(chi2, dof);
+        var kMinusOne = Math.min(aKeys.length, bKeys.length) - 1;
+        var cramersV = (n && kMinusOne) ? Math.sqrt(chi2 / (n * kMinusOne)) : 0;
+        if (pValue < alpha) {
+          hints.push({
+            a: nameA, b: nameB,
+            p_value: pValue,
+            cramers_v: Math.round(cramersV * 10000) / 10000,
+            chi2: Math.round(chi2 * 100) / 100
+          });
+        }
+      }
+    }
+    hints.sort(function (x, y) { return x.p_value - y.p_value; });
+    return hints;
+  }
+
   // ── Flags + grade (SPEC sections 5 & 6) ────────────────────────────────
   function grade(score) {
     if (score >= 85) return 'A';
@@ -1154,6 +1286,10 @@
                               sniffDelimiter: sniffDelimiter,
                               profile: profile, compare: compare,
                               parseReference: parseReference,
+                              // Opt-in, informational only (issue #738) - see
+                              // proxyHints()'s own comment for why this is
+                              // kept out of profile()/compare().
+                              proxyHints: proxyHints,
                               // publicParams: resolved knobs for an export's
                               // provenance.params, matching the Python path (#490).
                               publicParams: publicParams,

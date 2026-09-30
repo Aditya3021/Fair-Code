@@ -42,7 +42,9 @@ from .loaders_extra import get_xlsx_sheet_info, read_table
 from .profiler import _resolve_opts, parse_reference, profile
 from .provenance import build as build_provenance
 from .proxy import parse_held_out_specs, proxy_hints
-from .report import compare_to_terminal, to_html, compare_to_html, to_json, to_terminal
+from .report import (
+    compare_to_csv, compare_to_html, compare_to_terminal, to_csv, to_html, to_json, to_terminal,
+)
 from .sample_data import SAMPLE_FILENAME, build_sample_csv
 
 _MAP_CHOICES = VALID_KINDS + ("ignore",)
@@ -151,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true", help="emit JSON to stdout")
     p.add_argument("--html", metavar="PATH",
                    help="write a standalone HTML report to PATH")
+    p.add_argument("--csv", dest="csv_out", metavar="PATH",
+                   help="write a flat, one-row-per-group CSV export to PATH "
+                        "(dest csv_out - distinct from the csv dataset argument)")
     p.add_argument("--fail-under", type=float, metavar="N",
                    help="exit 1 when the overall representation score is below N")
     p.add_argument("--map", action="append", metavar="COL=KIND",
@@ -197,6 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--json", action="store_true", help="emit JSON to stdout")
     c.add_argument("--html", metavar="PATH",
                    help="write a standalone HTML report to PATH")
+    c.add_argument("--csv", dest="csv_out", metavar="PATH",
+                   help="write a flat, one-row-per-group CSV export to PATH")
     c.add_argument("--proxy-hints", action="store_true",
                    help="flag strongly-associated column pairs via chi-squared, "
                         "for both datasets separately (needs scipy)")
@@ -354,6 +361,16 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             print(f"HTML report written to {args.html}", file=sys.stderr)
 
+        if args.csv_out:
+            try:
+                with open(args.csv_out, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(to_csv(result))
+            except OSError as exc:
+                print(f"error: could not write CSV export to {args.csv_out}: {exc}",
+                      file=sys.stderr)
+                return 2
+            print(f"CSV export written to {args.csv_out}", file=sys.stderr)
+
         if args.json:
             provenance = None
             if not args.no_provenance:
@@ -465,6 +482,16 @@ def main(argv: list[str] | None = None) -> int:
                       file=sys.stderr)
                 return 2
             print(f"HTML report written to {args.html}", file=sys.stderr)
+
+        if args.csv_out:
+            try:
+                with open(args.csv_out, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(compare_to_csv(result))
+            except OSError as exc:
+                print(f"error: could not write CSV export to {args.csv_out}: {exc}",
+                      file=sys.stderr)
+                return 2
+            print(f"CSV export written to {args.csv_out}", file=sys.stderr)
         if args.json:
             provenance = None
             if not args.no_provenance:

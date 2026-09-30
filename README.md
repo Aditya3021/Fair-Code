@@ -987,10 +987,12 @@ faircode profile data.parquet                      # Parquet files work too
 faircode profile data.csv --json                   # machine-readable
 cat data.csv | faircode profile -                  # pipe CSV/TSV in via stdin
 faircode profile data.csv --html report.html       # standalone HTML report
+faircode profile data.csv --csv groups.csv         # flat, one-row-per-group CSV export
 faircode profile data.csv --fail-under 70          # fail CI if score is below 70
 faircode profile data.csv --min-group-size 50      # warn on subgroups under 50 rows
 faircode compare train.csv prod.csv                # representation drift, A → B (PSI)
 faircode compare train.csv prod.csv --html drift.html  # standalone HTML drift report
+faircode compare train.csv prod.csv --csv drift.csv     # flat CSV export (groups + summary)
 faircode compare train.csv prod.csv --map gndr=sex # --map/threshold flags apply to both sides
 faircode compare train.csv prod.csv --fail-on-drift # fail CI if any dimension drifted
 faircode compare train.csv prod.csv --proxy-hints  # chi-squared proxy hints for both datasets

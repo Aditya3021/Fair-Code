@@ -242,6 +242,65 @@ def test_profile_missing_file_exits_2_with_clean_error(tmp_path, capsys):
     assert f"error: file not found: {missing}" in captured.err
 
 
+def test_profile_csv_export_does_not_clobber_the_csv_dataset_argument(tmp_path, capsys):
+    """--csv (the export flag) and the positional `csv` dataset path argument
+    must not share an argparse dest - regression test for a real bug caught
+    while implementing #739: --csv silently overwrote args.csv, so the
+    dataset path used for reading (and for the provenance dataset_hash) was
+    replaced by the export path instead."""
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    out_path = tmp_path / "export.csv"
+
+    exit_code = main(["profile", str(path), "--csv", str(out_path), "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert f"CSV export written to {out_path}" in captured.err
+    assert out_path.exists()
+    result = json.loads(captured.out)
+    assert result["n_rows"] == 4  # read from `path`, not misdirected to out_path
+
+
+def test_profile_csv_export_writes_a_flat_group_table(tmp_path, capsys):
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    out_path = tmp_path / "export.csv"
+
+    exit_code = main(["profile", str(path), "--csv", str(out_path)])
+
+    assert exit_code == 0
+    rows = out_path.read_text(encoding="utf-8").splitlines()
+    assert rows[0] == "dimension,kind,label,count,share,ci_low,ci_high,under_represented,small_group"
+    assert any(r.startswith("sex,sex,") for r in rows[1:])
+
+
+def test_compare_csv_export_writes_group_and_summary_sections(tmp_path, capsys):
+    path_a = tmp_path / "a.csv"
+    path_a.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    path_b = tmp_path / "b.csv"
+    path_b.write_text("sex\nM\nM\nM\nF\n", encoding="utf-8")
+    out_path = tmp_path / "drift.csv"
+
+    exit_code = main(["compare", str(path_a), str(path_b), "--csv", str(out_path)])
+
+    assert exit_code == 0
+    text = out_path.read_text(encoding="utf-8")
+    assert "dimension,kind_a,kind_b,label,share_a,share_b,share_delta,status" in text
+    assert "dimension,kind_mismatch,dimension_score_a,dimension_score_b" in text
+
+
+def test_profile_csv_export_unwritable_path_returns_2_with_clean_error(tmp_path, capsys):
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\n", encoding="utf-8")
+
+    exit_code = main(["profile", str(path), "--csv", "/nonexistent-dir/out.csv"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "error: could not write CSV export to /nonexistent-dir/out.csv" in captured.err
+
+
 def test_profile_sample_runs_without_a_file_argument(capsys):
     exit_code = main(["profile", "--sample", "--json"])
 

@@ -242,6 +242,35 @@ def test_profile_missing_file_exits_2_with_clean_error(tmp_path, capsys):
     assert f"error: file not found: {missing}" in captured.err
 
 
+def test_profile_sample_runs_without_a_file_argument(capsys):
+    exit_code = main(["profile", "--sample", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    result = json.loads(captured.out)
+    assert result["provenance"]["dataset_hash"].startswith("sha256:")
+    assert any(d["name"] == "sex" for d in result["dimensions"])
+
+
+def test_profile_sample_and_csv_both_given_returns_2_with_clean_error(tmp_path, capsys):
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\n", encoding="utf-8")
+
+    exit_code = main(["profile", str(path), "--sample"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "pass either csv or --sample, not both" in captured.err
+
+
+def test_profile_without_csv_or_sample_returns_2_with_clean_error(capsys):
+    exit_code = main(["profile"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "profile needs a csv argument (or --sample)" in captured.err
+
+
 def test_profile_reads_csv_from_stdin(monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", io.StringIO("sex\nM\nF\nM\nF\n"))
 

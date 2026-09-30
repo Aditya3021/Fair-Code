@@ -25,7 +25,11 @@ command additionally requires the optional 'benchmark' extra
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import sys
+
+import pandas as pd
 
 from . import __version__
 from .compare import compare
@@ -39,6 +43,7 @@ from .profiler import _resolve_opts, parse_reference, profile
 from .provenance import build as build_provenance
 from .proxy import parse_held_out_specs, proxy_hints
 from .report import compare_to_terminal, to_html, compare_to_html, to_json, to_terminal
+from .sample_data import SAMPLE_FILENAME, build_sample_csv
 
 _MAP_CHOICES = VALID_KINDS + ("ignore",)
 
@@ -136,8 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("profile", help="profile a dataset for demographic imbalance")
-    p.add_argument("csv", help="path to the dataset file (.csv, .tsv, .xlsx, .json, or .parquet), "
-                               "or - to read CSV/TSV from stdin")
+    p.add_argument("csv", nargs="?",
+                   help="path to the dataset file (.csv, .tsv, .xlsx, .json, or .parquet), "
+                        "or - to read CSV/TSV from stdin (omit if using --sample)")
+    p.add_argument("--sample", action="store_true",
+                   help="profile a small bundled sample dataset instead of a file - "
+                        "a zero-argument way to see what a profile looks like, "
+                        "matching the web profiler's own sample-dataset button")
     p.add_argument("--json", action="store_true", help="emit JSON to stdout")
     p.add_argument("--html", metavar="PATH",
                    help="write a standalone HTML report to PATH")
@@ -244,6 +254,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "profile":
+        if args.sample and args.csv:
+            print("error: pass either csv or --sample, not both", file=sys.stderr)
+            return 2
+        if not args.sample and not args.csv:
+            print("error: profile needs a csv argument (or --sample)", file=sys.stderr)
+            return 2
         if args.proxy_hints_with and not args.proxy_hints:
             print("error: --proxy-hints-with needs --proxy-hints", file=sys.stderr)
             return 2
@@ -268,9 +284,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 2
 
-        df = _read_or_exit(args.csv)
-
-        sheet_info = get_xlsx_sheet_info(args.csv)
+        if args.sample:
+            df = pd.read_csv(io.StringIO(build_sample_csv()))
+            args.csv = SAMPLE_FILENAME  # for any downstream display purposes
+            sheet_info = None
+        else:
+            df = _read_or_exit(args.csv)
+            sheet_info = get_xlsx_sheet_info(args.csv)
         if sheet_info is not None:
             sheet_name, ignored_sheets = sheet_info
             if ignored_sheets:
@@ -337,10 +357,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             provenance = None
             if not args.no_provenance:
-                digests = [("dataset_hash", args.csv)]
+                digests = [] if args.sample else [("dataset_hash", args.csv)]
                 if args.reference:
                     digests.append(("reference_hash", args.reference))
                 provenance = build_provenance(digests, _resolve_opts(opts), overrides)
+                if args.sample:
+                    provenance["dataset_hash"] = "sha256:" + hashlib.sha256(
+                        build_sample_csv().encode("utf-8")).hexdigest()
             print(to_json(result, provenance=provenance))
         else:
             print(to_terminal(result))

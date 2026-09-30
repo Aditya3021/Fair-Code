@@ -631,3 +631,21 @@ def test_threshold_input_recovers_panel_after_invalid_value():
     assert "currentOpts[opt] = previous;" in handler
     # ... and retry once so the #results panel (and this input) come back
     assert handler.count("reprofile(false)") >= 2
+
+
+def test_python_js_sample_dataset_is_byte_identical():
+    """faircode profile --sample (faircode/sample_data.py) and the web
+    profiler's "Try it with a sample dataset" button
+    (assets/profiler-ui.js's buildSampleCSV()) must produce the exact same
+    CSV text, so a first-time user sees an identical demo either way (#741)."""
+    from faircode.sample_data import build_sample_csv
+
+    src = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
+    match = re.search(r"function buildSampleCSV\(\) \{[\s\S]*?\n  \}", src)
+    assert match, "could not find buildSampleCSV() in profiler-ui.js"
+
+    script = match.group(0) + ";process.stdout.write(buildSampleCSV());"
+    completed = subprocess.run(
+        ["node", "-e", script], capture_output=True, text=True, encoding="utf-8", check=True,
+    )
+    assert completed.stdout == build_sample_csv()

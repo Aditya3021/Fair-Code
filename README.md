@@ -190,6 +190,7 @@ Fair-Code/
 │   ├── benchmark.py                     #   orchestrator - manifests → strategies → metrics → tables
 │   ├── figures.py                       #   renders results_fairness.csv → figures/*.png (300 dpi)
 │   ├── cli.py                           #   `faircode profile` / `compare` / `benchmark` entry point
+│   ├── sample_data.py                   #   bundled demo dataset for `--sample`, shared with the web profiler
 │   ├── mcp_server.py                    #   `faircode-mcp` entry point - 6 MCP tools (SPEC.md section 11)
 │   ├── provenance.py                    #   dataset SHA-256 + resolved-params block for --json/--html exports
 │   ├── _explainers/                     #   generated mirror of explainers/*.md, for the MCP tools
@@ -977,6 +978,7 @@ pip install -e ".[excel]"                          # + .xlsx support (openpyxl)
 pip install -e ".[parquet]"                        # + .parquet support (pyarrow)
 pip install -e ".[proxy]"                           # + chi-squared proxy hints (scipy)
 pip install -e ".[mcp]"                             # + MCP server for agent tool-calling
+faircode profile --sample                          # no file? profile a bundled sample dataset
 faircode profile "Insurance Denial/insurance.csv"  # terminal report
 faircode profile data.tsv                          # tab-separated exports work too
 faircode profile data.xlsx                         # Excel workbooks work too

@@ -198,6 +198,7 @@ Fair-Code/
 ├── tests/
 │   ├── fixtures/                        #   sample datasets for loader/edge-case tests
 │   ├── test_benchmark.py                # end-to-end benchmark harness tests
+│   ├── test_benchmark_dashboard.py      #   benchmark.html's client-side results explorer
 │   ├── test_build_explainers.py         #   explainer HTML/JS generation
 │   ├── test_check_generated_files_current.py  #   validates the generated-files-current check itself
 │   ├── test_cli.py                      #   CLI subcommand tests
@@ -338,7 +339,9 @@ Fair-Code/
 │   ├── og/                              #   dark-theme OG share images, per explainer
 │   ├── og-light/                        #   light-theme counterparts
 │   ├── profiler-engine.js, profiler-ui.js, profiler-compare.js, profiler.css   # client-side profiler
+│   ├── benchmark-dashboard.js, benchmark.css   # client-side benchmark results dashboard
 │   └── explainers-data.json, explainers-data.js, explainers-ui.js, explainers.css   # client-side explainer index
+├── benchmark.html                       # Benchmark Results Dashboard - interactive results/ explorer
 ├── explainer.html                       # static ?slug= redirect shim -> explainers/<slug>.html (see DEAD-FILE-AUDIT.md)
 ├── index.html                           # live at thefaircode.xyz
 ├── profiler.html                        # Open Dataset Profiler - client-side web tool
@@ -1079,6 +1082,13 @@ Writes `results_fairness.csv`, `results_performance.csv`, `summary.csv`, and one
 the CSVs, so re-plotting a different metric never requires re-running a model). One code path, same
 seed, same splits, same metric definitions, for every domain - that uniformity is what makes "we
 measured every audit identically" a true statement rather than an assertion.
+
+**Layer 3 - the dashboard (`benchmark.html`).** An interactive, client-side explorer for
+`results_fairness.csv`/`results_performance.csv` - filter by audit, strategy, model, protected
+attribute, and metric; sort any column; chart every audit x strategy x model combination for a
+chosen metric + protected attribute. It fetches the bundled CSVs from this same site by default, or
+accepts a drag-and-drop of your own `faircode benchmark` export - same client-side, nothing-uploaded
+model as the Profiler, reusing its CSV parser (`assets/profiler-engine.js`).
 
 ---
 

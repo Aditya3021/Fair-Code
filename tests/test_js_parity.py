@@ -267,8 +267,9 @@ def test_python_js_public_params_parity_for_a_defaulted_run():
     )
     assert json.loads(completed.stdout) == expected
     assert set(expected) == {
-        "cross", "imbalance_flag", "intersection_floor", "min_group_size",
-        "min_share", "missing_flag", "reference_flag",
+        "cross", "imbalance_flag", "intersection_floor", "max_categorical_card",
+        "max_dimension_groups", "min_group_size", "min_share", "missing_flag",
+        "reference_flag",
     }
     assert "reference" not in expected
 

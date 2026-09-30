@@ -224,7 +224,8 @@ how many groups were omitted; the structured result remains complete.
 
 The flagging thresholds are overridable per run without editing source: `profile(df, opts={...})`
 in Python, `profile(table, overrides, opts)` in JS, and `--min-share` / `--intersection-floor` /
-`--imbalance-flag` / `--missing-flag` / `--min-group-size` on the CLI. Omitted knobs fall back to the defaults below.
+`--imbalance-flag` / `--missing-flag` / `--min-group-size` / `--max-categorical-card` /
+`--max-dimension-groups` on the CLI. Omitted knobs fall back to the defaults below.
 
 | Constant               | Default | Used by                          |
 |------------------------|:-------:|----------------------------------|
@@ -232,6 +233,7 @@ in Python, `profile(table, overrides, opts)` in JS, and `--min-share` / `--inter
 | `MIN_GROUP_SIZE`       | 100     | `small_group` unreliable-metric flag |
 | `INTERSECTION_FLOOR`   | 0.01    | near-empty intersection cells    |
 | `MAX_CATEGORICAL_CARD` | 20      | generic-categorical detection    |
+| `MAX_DIMENSION_GROUPS` | 50      | identifier/date-like dimension drop |
 | `IMBALANCE_FLAG`       | 3.0     | imbalance-ratio flag             |
 | `MISSING_FLAG`         | 0.05    | missing-data flag                |
 | `AGE_BANDS`            | 0,18,30,45,60,75 | age band edges          |

@@ -562,6 +562,51 @@ def test_compare_proxy_hints_flags_a_real_proxy_in_both_datasets(tmp_path, capsy
         assert pair["p_value"] < 0.05
 
 
+@requires_scipy
+def test_compare_proxy_hints_with_flags_a_dropped_column_in_each_dataset(tmp_path, capsys):
+    zip_code = (["111"] * 100 + ["222"] * 100)
+    race = (["A"] * 100 + ["B"] * 100)  # perfectly aligned with zip_code
+
+    path_a = tmp_path / "a.csv"
+    path_a.write_text("zip_code\n" + "\n".join(zip_code), encoding="utf-8")
+    held_a = tmp_path / "held_a.csv"
+    held_a.write_text("zip_code,race\n" +
+                      "\n".join(f"{z},{r}" for z, r in zip(zip_code, race)),
+                      encoding="utf-8")
+
+    path_b = tmp_path / "b.csv"
+    path_b.write_text("zip_code\n" + "\n".join(zip_code), encoding="utf-8")
+    held_b = tmp_path / "held_b.csv"
+    held_b.write_text("zip_code,race\n" +
+                      "\n".join(f"{z},{r}" for z, r in zip(zip_code, race)),
+                      encoding="utf-8")
+
+    exit_code = main(["compare", str(path_a), str(path_b), "--proxy-hints",
+                      "--proxy-hints-with-a", f"{held_a}=race",
+                      "--proxy-hints-with-b", f"{held_b}=race", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    result = json.loads(captured.out)
+    for key in ("proxy_hints_a", "proxy_hints_b"):
+        pair = next(h for h in result[key] if {h["a"], h["b"]} == {"zip_code", "race"})
+        assert pair["p_value"] < 0.05
+
+
+def test_compare_proxy_hints_with_a_without_proxy_hints_returns_2_with_clean_error(tmp_path, capsys):
+    path_a = tmp_path / "a.csv"
+    path_a.write_text("sex\nM\nF\n", encoding="utf-8")
+    path_b = tmp_path / "b.csv"
+    path_b.write_text("sex\nM\nF\n", encoding="utf-8")
+
+    exit_code = main(["compare", str(path_a), str(path_b),
+                      "--proxy-hints-with-a", "/nonexistent/file.csv=race"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "--proxy-hints-with-a/-b needs --proxy-hints" in captured.err
+
+
 def test_compare_proxy_hints_runtime_error_returns_2_with_clean_error(tmp_path, capsys, monkeypatch):
     path_a = tmp_path / "a.csv"
     path_a.write_text("sex\nM\nF\n", encoding="utf-8")

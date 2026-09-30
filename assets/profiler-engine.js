@@ -32,6 +32,8 @@
     missing_flag: MISSING_FLAG,
     reference_flag: REFERENCE_DEVIATION_FLAG,
     min_group_size: MIN_GROUP_SIZE,  // warn when a subgroup has fewer than N rows
+    max_categorical_card: MAX_CATEGORICAL_CARD,
+    max_dimension_groups: MAX_DIMENSION_GROUPS,
     cross: null,      // [colA, colB] to force the intersection pair (SPEC 4)
     reference: null   // {column: {group: expected_share}} baseline (SPEC 8)
   };
@@ -55,6 +57,12 @@
     }
     if (o.min_group_size !== null && o.min_group_size !== undefined && o.min_group_size < 1) {
       throw new Error('min_group_size must be >= 1, got ' + o.min_group_size);
+    }
+    if (o.max_categorical_card !== null && o.max_categorical_card !== undefined && o.max_categorical_card < 2) {
+      throw new Error('max_categorical_card must be >= 2, got ' + o.max_categorical_card);
+    }
+    if (o.max_dimension_groups !== null && o.max_dimension_groups !== undefined && o.max_dimension_groups < 1) {
+      throw new Error('max_dimension_groups must be >= 1, got ' + o.max_dimension_groups);
     }
   }
 
@@ -458,8 +466,11 @@
     return Object.keys(seen).length;
   }
 
-  function detectColumns(table, overrides) {
+  function detectColumns(table, overrides, maxCategoricalCard) {
     overrides = overrides || {};
+    if (maxCategoricalCard === null || maxCategoricalCard === undefined) {
+      maxCategoricalCard = MAX_CATEGORICAL_CARD;
+    }
     var detected = [];
     table.columns.forEach(function (col) {
       if (Object.prototype.hasOwnProperty.call(overrides, col)) {
@@ -470,7 +481,7 @@
       var kind = classifyName(col);
       if (kind !== null) { detected.push({ name: col, kind: kind }); return; }
       var n = nunique(table.rows, col);
-      if (n >= 2 && n <= MAX_CATEGORICAL_CARD) {
+      if (n >= 2 && n <= maxCategoricalCard) {
         detected.push({ name: col, kind: 'categorical' });
       }
     });
@@ -838,7 +849,7 @@
   function profile(table, overrides, opts) {
     overrides = overrides || {};
     var o = resolveOpts(opts);
-    var detected = detectColumns(table, overrides);
+    var detected = detectColumns(table, overrides, o.max_categorical_card);
     var dimensions = detected.map(function (d) {
       return dimension(table, d.name, d.kind, o.min_share, o.min_group_size);
     });
@@ -847,7 +858,7 @@
       if (VALID_KINDS[overrides[col]]) forced[col] = 1;
     });
     dimensions = dimensions.filter(function (d) {
-      return d.kind === 'geography' || forced[d.name] || d.n_groups <= MAX_DIMENSION_GROUPS;
+      return d.kind === 'geography' || forced[d.name] || d.n_groups <= o.max_dimension_groups;
     });
     var keptNames = {};
     dimensions.forEach(function (d) { keptNames[d.name] = 1; });

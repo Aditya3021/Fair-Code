@@ -2,11 +2,15 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.thefaircode.xyz/</loc>
-    <lastmod>2026-09-27</lastmod>
+    <lastmod>2026-09-30</lastmod>
   </url>
   <url>
     <loc>https://www.thefaircode.xyz/profiler.html</loc>
-    <lastmod>2026-09-13</lastmod>
+    <lastmod>2026-09-30</lastmod>
+  </url>
+  <url>
+    <loc>https://www.thefaircode.xyz/benchmark.html</loc>
+    <lastmod>2026-09-30</lastmod>
   </url>
   <url>
     <loc>https://www.thefaircode.xyz/explainers/proxy-variables.html</loc>
@@ -254,5 +258,6 @@
   </url>
   <url>
     <loc>https://www.thefaircode.xyz/explainers/algorithmic-recourse.html</loc>
+    <lastmod>2026-09-28</lastmod>
   </url>
 </urlset>

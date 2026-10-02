@@ -73,7 +73,7 @@ function makeEl(id) {
 
 var ids = ['loadBundledBtn', 'benchDropzone', 'benchFileInput', 'benchError', 'benchStatus',
   'benchResults', 'benchFilters', 'significantOnlyInput', 'benchSummary', 'benchTable',
-  'benchChart', 'benchChartNote', 'benchChartBlock'];
+  'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn'];
 var elements = {};
 ids.forEach(function (id) { elements[id] = makeEl(id); });
 
@@ -124,7 +124,13 @@ var fetchMap = {
 global.fetch = function (url) {
   return Promise.resolve({ ok: true, text: function () { return Promise.resolve(fetchMap[url]); } });
 };
+var lastBlob = null;
+global.Blob = function (parts) { lastBlob = parts.join(''); };
+global.URL = { createObjectURL: function () { return 'blob:x'; }, revokeObjectURL: function () {} };
+global.document.body = { appendChild: function () {}, removeChild: function () {} };
 global.window = global;
+global.window.location = { search: process.argv[2] || '' };
+global.history = { replaceState: function (a, b, u) { global.__lastUrl = u; } };
 
 require(path.join(REPO, 'assets', 'profiler-engine.js'));
 
@@ -133,9 +139,10 @@ var results = {};
 (async function () {
   require(path.join(REPO, 'assets', 'benchmark-dashboard.js'));
 
-  elements.loadBundledBtn.click();
+  if (!process.argv[2]) elements.loadBundledBtn.click(); // a shared link must load by itself
   await new Promise(function (r) { setTimeout(r, 20); });
 
+  results.last_url_after_first_render = global.__lastUrl;
   results.results_hidden_after_load = elements.benchResults.hidden;
   results.summary_unfiltered = elements.benchSummary.textContent;
 
@@ -172,19 +179,29 @@ var results = {};
   if (valueBtn2) valueBtn2.click(); // descending
   results.first_row_value_desc = firstRowValue();
 
+  results.export_btn_hidden = elements.benchExportBtn.hidden;
+  elements.benchExportBtn.click();
+  results.export_csv = lastBlob;
+
   var perfTab = global.__tabButtons[1];
   perfTab.click();
   results.performance_tab_summary = elements.benchSummary.textContent;
-  results.chart_block_hidden_on_performance = elements.benchChartBlock.hidden;
+  results.perf_chart_note_before = elements.benchChartNote.textContent;
+  var metricSelect = createdSelects['metric'];
+  metricSelect.value = 'accuracy';
+  (metricSelect._listeners.change || []).forEach(function (f) { f(); });
+  results.perf_chart_bars = (elements.benchChart.innerHTML.match(/class="bar-row"/g) || []).length;
+  results.perf_chart_hidden = elements.benchChart.hidden;
 
+  results.last_url = global.__lastUrl;
   process.stdout.write(JSON.stringify(results));
 })();
 """
 
 
-def _run_dom_stub():
+def _run_dom_stub(search=""):
     completed = subprocess.run(
-        ["node", "-e", _DOM_STUB, str(REPO_ROOT)],
+        ["node", "-e", _DOM_STUB, str(REPO_ROOT), search],
         capture_output=True, text=True, encoding="utf-8", check=True,
     )
     return json.loads(completed.stdout)
@@ -223,7 +240,19 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert r["first_row_value_desc"] == _rounded(compas_significant["value"].max())
 
     assert r["performance_tab_summary"] == f"{len(performance):,} of {len(performance):,} rows shown"
-    assert r["chart_block_hidden_on_performance"] is True
+
+    # #762: the performance tab charts too, once a metric is chosen.
+    perf_accuracy = performance[performance["metric"] == "accuracy"]
+    assert "Pick a metric" in r["perf_chart_note_before"]
+    assert r["perf_chart_hidden"] is False
+    assert r["perf_chart_bars"] == len(perf_accuracy)
+
+    # #761: the export is the filtered + sorted view, header included.
+    assert r["export_btn_hidden"] is False
+    lines = r["export_csv"].strip().split("\r\n")
+    assert lines[0].startswith("audit,strategy,model,protected_attribute,metric,value")
+    assert len(lines) == len(compas_significant) + 1
+    assert round(float(lines[1].split(",")[5]), 4) == _rounded(compas_significant["value"].max())
 
 
 def _rounded(x):
@@ -246,5 +275,25 @@ def test_benchmark_dashboard_ui_wiring_present_in_html_and_css():
     css = (REPO_ROOT / "assets" / "benchmark.css").read_text(encoding="utf-8")
     assert ".bench-table" in css
 
+    assert html.count('aria-live="polite"') >= 2  # #763
+    assert 'id="benchExportBtn"' in html
+
     roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
     assert "- [x] Fairness dashboard for the benchmark harness results" in roadmap
+
+
+def test_benchmark_dashboard_url_state_round_trips():
+    """#764: a shared link restores tab/filter/significant-only/sort and
+    auto-loads the bundled results; later renders keep the URL in sync."""
+    fairness = pd.read_csv(REPO_ROOT / "results" / "results_fairness.csv")
+    expected = fairness[(fairness["audit"] == "compas") & fairness["significant"]]
+
+    r = _run_dom_stub("?tab=fairness&audit=compas&sig=1&sort=value:desc")
+    # significant-only was restored from ?sig=1, so even before the stub toggles it
+    # the audit-filtered count is already the significant subset.
+    assert r["summary_after_audit_filter"].startswith(f"{len(expected):,} of")
+    url = r["last_url_after_first_render"]
+    for part in ("tab=fairness", "audit=compas", "sig=1", "sort=value%3Adesc"):
+        assert part in url
+    # ...and the stub's later switch to the performance tab rewrites it.
+    assert "tab=performance" in r["last_url"]

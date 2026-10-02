@@ -165,7 +165,7 @@
 
     <div class="bench-load-row">
       <button class="bench-load-btn" id="loadBundledBtn" type="button">Load bundled benchmark results</button>
-      <span class="bench-status" id="benchStatus"></span>
+      <span class="bench-status" id="benchStatus" aria-live="polite"></span>
     </div>
     <p class="profiler-error" id="benchError" role="alert" hidden></p>
 
@@ -191,7 +191,8 @@
       <label class="bench-sig-toggle">
         <input type="checkbox" id="significantOnlyInput"> Significant results only (p &lt; 0.05)
       </label>
-      <p class="bench-summary" id="benchSummary"></p>
+      <p class="bench-summary" id="benchSummary" aria-live="polite"></p>
+      <button type="button" class="action-btn" id="benchExportBtn" hidden>⬇ Download filtered CSV</button>
 
       <div class="bench-chart-block" id="benchChartBlock">
         <h3 class="section-title">Chart</h3>

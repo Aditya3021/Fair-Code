@@ -32,6 +32,8 @@
     sort: { fairness: null, performance: null } // { field, dir }
   };
 
+  var pending = { filters: {}, sort: {} }; // from the URL, applied when that tab's data loads
+  var exportBtn = document.getElementById('benchExportBtn');
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.bench-tab'));
   var loadBundledBtn = document.getElementById('loadBundledBtn');
   var dropzone = document.getElementById('benchDropzone');
@@ -89,8 +91,10 @@
       return row;
     });
     state[kind] = { rows: rows };
-    state.filters[kind] = {};
-    state.sort[kind] = null;
+    state.filters[kind] = pending.filters[kind] || {};
+    state.sort[kind] = pending.sort[kind] || null;
+    pending.filters[kind] = null;
+    pending.sort[kind] = null;
   }
 
   function loadText(kind, text, sourceName) {
@@ -319,13 +323,20 @@
     });
   }
 
-  // ── Rendering: chart (fairness only) ───────────────────────────────────
-  function renderChart(rows) {
-    var filters = state.filters.fairness;
-    if (!filters.metric || !filters.protected_attribute) {
+  // ── Rendering: chart ──────────────────────────────────────────────────
+  // Fairness: needs a metric + protected attribute so every bar shares a
+  // scale. Performance (issue #762): needs a metric (accuracy/AUC/F1 differ
+  // in meaning), has no significance flag so all bars use the neutral style.
+  function renderChart(kind, rows) {
+    var filters = state.filters[kind];
+    var ready = kind === 'fairness'
+      ? (filters.metric && filters.protected_attribute) : filters.metric;
+    if (!ready) {
       chartHost.innerHTML = '';
-      chartNote.textContent = 'Pick a metric and a protected attribute above to chart every ' +
-        'audit x strategy x model combination on the same scale.';
+      chartNote.textContent = kind === 'fairness'
+        ? 'Pick a metric and a protected attribute above to chart every ' +
+          'audit x strategy x model combination on the same scale.'
+        : 'Pick a metric above to chart every audit x strategy x model combination.';
       chartHost.hidden = true;
       return;
     }
@@ -340,7 +351,7 @@
     var sorted = rows.slice().sort(function (a, b) { return Math.abs(b.value || 0) - Math.abs(a.value || 0); });
     chartHost.innerHTML = sorted.map(function (r) {
       var w = r.value === null ? 0 : (Math.abs(r.value) / maxAbs) * 100;
-      var cls = r.significant ? 'bad' : 'good';
+      var cls = kind === 'fairness' && r.significant ? 'bad' : 'good';
       var label = r.audit + ' · ' + r.strategy + ' · ' + r.model;
       return '<div class="bar-row">' +
         '<span class="bar-label" title="' + esc(label) + '">' + esc(label) + '</span>' +
@@ -350,18 +361,86 @@
     }).join('');
   }
 
+  // ── Export of the current (filtered + sorted) view (issue #761) ────────
+  function csvField(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'True' : 'False';
+    var t = String(v);
+    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+
+  function rowsToCsv(kind, rows) {
+    var cols = kind === 'fairness' ? FAIRNESS_COLUMNS : PERFORMANCE_COLUMNS;
+    return [cols.join(',')].concat(rows.map(function (r) {
+      return cols.map(function (c) { return csvField(r[c]); }).join(',');
+    })).join('\r\n') + '\r\n';
+  }
+
+  function downloadFiltered() {
+    var kind = state.tab;
+    if (!state[kind]) return;
+    var csv = rowsToCsv(kind, sortedRows(kind, filteredRows(kind)));
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'results_' + kind + '_filtered.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  exportBtn.addEventListener('click', downloadFiltered);
+
+  // ── URL deep-linking (issue #764) ──────────────────────────────────────
+  // Only the active tab's view is encoded: ?tab=fairness&audit=compas&sig=1&sort=value:asc
+  function writeUrlState() {
+    try {
+      var kind = state.tab, params = new URLSearchParams();
+      params.set('tab', kind);
+      FILTER_FIELDS[kind].forEach(function (f) {
+        if (state.filters[kind][f]) params.set(f, state.filters[kind][f]);
+      });
+      if (kind === 'fairness' && state.significantOnly) params.set('sig', '1');
+      if (state.sort[kind]) params.set('sort', state.sort[kind].field + ':' + state.sort[kind].dir);
+      history.replaceState(null, '', '?' + params.toString());
+    } catch (e) { /* file:// or sandboxed frames: deep-linking is best-effort */ }
+  }
+
+  function readUrlState() {
+    var params;
+    try { params = new URLSearchParams(window.location.search); } catch (e) { return false; }
+    var tab = params.get('tab');
+    if (tab !== 'fairness' && tab !== 'performance') return false;
+    state.tab = tab;
+    var f = {};
+    FILTER_FIELDS[tab].forEach(function (field) { if (params.get(field)) f[field] = params.get(field); });
+    pending.filters[tab] = f;
+    var sort = (params.get('sort') || '').split(':');
+    if (sort.length === 2 && (sort[1] === 'asc' || sort[1] === 'desc')) {
+      pending.sort[tab] = { field: sort[0], dir: sort[1] };
+    }
+    if (tab === 'fairness' && params.get('sig') === '1') {
+      state.significantOnly = true;
+      significantOnlyInput.checked = true;
+    }
+    tabButtons.forEach(function (b) { b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
+    return true;
+  }
+
   // ── Orchestrator ────────────────────────────────────────────────────────
   function render() {
     var kind = state.tab;
     var data = state[kind];
     resultsEl.hidden = !(state.fairness || state.performance);
-    document.getElementById('benchChartBlock').hidden = kind !== 'fairness';
     if (!data) {
       filterBar.innerHTML = '';
       significantOnlyInput.parentElement.hidden = true;
       summaryEl.textContent = '';
       tableHost.innerHTML = '<p class="section-note">Load ' + kind + ' results above to explore them.</p>';
-      if (kind === 'fairness') { chartHost.innerHTML = ''; chartHost.hidden = true; chartNote.textContent = ''; }
+      chartHost.innerHTML = ''; chartHost.hidden = true; chartNote.textContent = '';
+      exportBtn.hidden = true;
       return;
     }
     significantOnlyInput.parentElement.hidden = kind !== 'fairness';
@@ -371,8 +450,12 @@
     summaryEl.textContent = rows.length.toLocaleString() + ' of ' + data.rows.length.toLocaleString() + ' rows shown' +
       (sigCount !== null ? ' · ' + sigCount.toLocaleString() + ' significant' : '');
     renderTable(kind, rows);
-    if (kind === 'fairness') renderChart(rows);
+    renderChart(kind, rows);
+    exportBtn.hidden = false;
+    writeUrlState();
   }
 
+  var restored = readUrlState();
   render();
+  if (restored) loadBundled();
 })();

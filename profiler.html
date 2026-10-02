@@ -379,8 +379,18 @@
       <div class="results-actions" id="compareReportActions" hidden>
         <button class="action-btn" id="compareDownloadHtmlBtn" type="button">⬇ Download report (HTML)</button>
         <button class="action-btn" id="compareCopyJsonBtn" type="button">⧉ Copy as JSON</button>
+        <button class="action-btn" id="compareDownloadCsvBtn" type="button">⬇ Download CSV</button>
       </div>
       <section class="compare-results" id="compareResults" hidden></section>
+      <div class="proxy-hints-block" id="compareProxyHintsBlock" hidden>
+        <h3 class="section-title">Proxy-hint detection</h3>
+        <p class="section-note">
+          Opt-in chi-squared check, run separately on each dataset, for column pairs strongly
+          associated with each other. Informational only; it never affects either score.
+        </p>
+        <button type="button" class="proxy-hints-btn" id="compareProxyHintsBtn">Check for proxy columns</button>
+        <div id="compareProxyHintsResults"></div>
+      </div>
     </section>
 
     <footer class="profiler-foot">

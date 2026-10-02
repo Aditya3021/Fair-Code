@@ -1,6 +1,8 @@
 """Parity tests between the Python and JavaScript profiler implementations."""
 
+import csv
 import importlib.util
+import io
 import json
 import re
 import subprocess
@@ -850,3 +852,54 @@ def test_web_html_report_has_core_sections_and_proxy_hints(tmp_path):
     assert "Proxy hints" not in plain
     hinted = _run_ui_exports(path, True)["html"]
     assert "Proxy hints" in hinted and "sex ↔ race" in hinted
+
+
+def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path):
+    """Executes the real buildCompareCsvReport/buildCompareHtmlReport (#756,
+    #757): the CSV's group and summary sections must equal Python's
+    compare_to_csv() (flags differ in float formatting, so they are excluded),
+    and attached proxy hints must reach both the CSV and the HTML report."""
+    from faircode.report import compare_to_csv
+
+    path_a = _sex_race_csv(tmp_path)
+    rows = ["sex,race"] + [
+        f"{'male' if i % 3 else 'female'},{'White' if i % 4 else 'Asian'}" for i in range(80)
+    ]
+    path_b = tmp_path / "b.csv"
+    path_b.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    src = (REPO_ROOT / "assets" / "profiler-compare.js").read_text(encoding="utf-8")
+    helpers = (src[src.index("function pct("):src.index("function wireSlot")]
+               + src[src.index("function kindMismatchReason"):src.index("function driftCard")])
+    builders = src[src.index("function proxyHintItems"):src.index("function compareReportBaseName")]
+    csvs = src[src.index("function csvField"):src.index("function downloadCompareCsvReport")]
+    script = (
+        "var DISPLAY_GROUPS=12;" + helpers + builders + csvs +
+        "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        "function load(p){return E.parseCSV(fs.readFileSync(p,'utf-8'));}"
+        "var ta=load(process.argv[2]),tb=load(process.argv[3]);"
+        "var pa=E.profile(ta,{},{}),pb=E.profile(tb,{},{});var c=E.compare(pa,pb,'a.csv','b.csv');"
+        "var plain=buildCompareCsvReport(c);"
+        "c.proxy_hints_a=E.proxyHints(ta,pa.dimensions,2);c.proxy_hints_b=E.proxyHints(tb,pb.dimensions,2);"
+        "process.stdout.write(JSON.stringify({plain:plain,csv:buildCompareCsvReport(c),html:buildCompareHtmlReport(c)}));"
+    )
+    completed = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), str(path_a), str(path_b)],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    )
+    out = json.loads(completed.stdout)
+
+    py = compare_to_csv(compare(profile(pd.read_csv(path_a)), profile(pd.read_csv(path_b)), "a.csv", "b.csv"))
+    def head(text):
+        # Python writes 0.0 where JS writes 0; compare numerically, not textually.
+        def norm(cell):
+            try:
+                return float(cell)
+            except ValueError:
+                return cell
+        body = text.replace("\r\n", "\n").split("\n\nflag\n")[0]
+        return [[norm(c) for c in row] for row in csv.reader(io.StringIO(body))]
+
+    assert head(out["plain"]) == head(py)
+    assert "dataset,proxy_hint_a,proxy_hint_b,p_value,cramers_v" in out["csv"]
+    assert "Proxy hints - A" in out["html"] and "Proxy hints - B" in out["html"]

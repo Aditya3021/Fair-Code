@@ -6,7 +6,7 @@
 ![Contributors](https://img.shields.io/badge/Contributors-40-blue?style=flat-square)
 ![Forks](https://img.shields.io/badge/Forks-45-orange?style=flat-square)
 ![Watching](https://img.shields.io/badge/Watching-8-yellow?style=flat-square)
-![Explainers](https://img.shields.io/badge/Explainers-61-blueviolet?style=flat-square)
+![Explainers](https://img.shields.io/badge/Explainers-62-blueviolet?style=flat-square)
 ![Countries](https://img.shields.io/badge/Countries-20-informational?style=flat-square)
 ![Updated](https://img.shields.io/badge/Updated-Weekly-lightgrey?style=flat-square)
 
@@ -107,7 +107,7 @@ Weekly snapshot of project health. Updated every Friday.
 | Countries reached | 20 | 20+ | End of 2026 |
 | Issues closed | 25 (past 7 days) | Track weekly | Ongoing |
 | Code audits | 7 | 8+ | End of 2026 |
-| Explainers | 61 | 65+ | End of 2026 |
+| Explainers | 62 | 65+ | End of 2026 |
 
 ---
 

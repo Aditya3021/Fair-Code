@@ -44,7 +44,7 @@ Fair Code is an open-source responsible AI platform explaining algorithmic bias,
 
 ## Phase 1 - Bias Glossary and Beginner Explainers ✅
 
-**Status: Foundational library complete - 61 explainers published, past the original 60+ target, working toward 65+**
+**Status: Foundational library complete - 62 explainers published, past the original 60+ target, working toward 65+**
 
 Build the foundational vocabulary and explain core fairness concepts clearly enough for a non-technical reader.
 

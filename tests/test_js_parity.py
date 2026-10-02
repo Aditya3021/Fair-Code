@@ -784,3 +784,69 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
     ui = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
     assert "proxyHintsBtn.addEventListener('click', renderProxyHints)" in ui
     assert "E.proxyHints(currentTable, currentResult.dimensions)" in ui
+
+
+def _run_ui_exports(csv_path, with_hints):
+    """Execute profiler-ui.js's real buildHtmlReport/buildCsvReport (sliced out
+    of the DOM-coupled file) against a real engine profile of `csv_path`."""
+    src = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
+    helpers = src[src.index("var GRADE_COLOR"):src.index("function render(")]
+    builders = src[src.index("function buildHtmlReport(r)"):src.index("function downloadCsvReport")]
+    script = (
+        "var DISPLAY_GROUPS=12;" + helpers + builders +
+        "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{},{});"
+        + ("r.proxy_hints=E.proxyHints(t,r.dimensions,0.9);" if with_hints else "") +
+        "process.stdout.write(JSON.stringify({html:buildHtmlReport(r),csv:buildCsvReport(r)}));"
+    )
+    completed = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), str(csv_path)],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    )
+    return json.loads(completed.stdout)
+
+
+def _sex_race_csv(tmp_path):
+    rows = ["sex,race"]
+    for i in range(60):
+        sex = "male" if i % 2 == 0 else "female"
+        race = ("White" if i % 5 != 0 else "Black") if sex == "male" else ("White" if i % 4 == 0 else "Black")
+        rows.append(f"{sex},{race}")
+    path = tmp_path / "sr.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return path
+
+
+def test_web_csv_export_matches_python_to_csv(tmp_path):
+    """The web "Download CSV" output (#755) must equal faircode's to_csv()
+    for the same data, with and without proxy hints (#758, #760)."""
+    pytest.importorskip("scipy")
+    from faircode.detect import detect_columns
+    from faircode.proxy import proxy_hints
+    from faircode.report import to_csv
+
+    path = _sex_race_csv(tmp_path)
+    df = pd.read_csv(path)
+    result = dict(profile(df))
+    plain = _run_ui_exports(path, False)["csv"]
+    assert plain.replace("\r\n", "\n") == to_csv(result).replace("\r\n", "\n")
+
+    dims = [{"name": d["name"], "kind": d["kind"]} for d in detect_columns(df)]
+    result["proxy_hints"] = proxy_hints(df, dims, alpha=0.9)
+    with_hints = _run_ui_exports(path, True)["csv"].splitlines()
+    py = to_csv(result).splitlines()
+    i = with_hints.index("proxy_hint_a,proxy_hint_b,p_value,cramers_v")
+    assert with_hints[:i] == py[:i]
+    assert with_hints[i + 1].startswith("sex,race,") and py[i + 1].startswith("sex,race,")
+
+
+def test_web_html_report_has_core_sections_and_proxy_hints(tmp_path):
+    """buildHtmlReport() (the file the web "Download report" button emits) had
+    no test (#765) and silently omitted proxy hints (#758)."""
+    path = _sex_race_csv(tmp_path)
+    plain = _run_ui_exports(path, False)["html"]
+    assert "Dataset Representation Profile" in plain
+    assert "<h2>sex" in plain and "<h2>race" in plain
+    assert "Proxy hints" not in plain
+    hinted = _run_ui_exports(path, True)["html"]
+    assert "Proxy hints" in hinted and "sex ↔ race" in hinted

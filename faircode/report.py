@@ -35,6 +35,15 @@ def to_json(result: dict, indent: int = 2, provenance: dict | None = None) -> st
     return json.dumps(dict(result, provenance=provenance), indent=indent)
 
 
+def _write_proxy_rows(writer, hints, side=None) -> None:
+    """Proxy-hint section shared by to_csv/compare_to_csv: a header row, then
+    one row per hint (a `dataset` column is added only for compare's A/B)."""
+    prefix = ["dataset"] if side else []
+    writer.writerow(prefix + ["proxy_hint_a", "proxy_hint_b", "p_value", "cramers_v"])
+    for h in hints:
+        writer.writerow(([side] if side else []) + [h["a"], h["b"], h["p_value"], h["cramers_v"]])
+
+
 def to_csv(result: dict) -> str:
     """Flat CSV export of a profile result: one row per group per dimension,
     every group included (not just the first DISPLAY_GROUPS shown in terminal/
@@ -62,6 +71,9 @@ def to_csv(result: dict) -> str:
     writer.writerow(["flag"])
     for flag in result["flags"]:
         writer.writerow([flag])
+    if result.get("proxy_hints"):
+        writer.writerow([])
+        _write_proxy_rows(writer, result["proxy_hints"])
     return buf.getvalue()
 
 
@@ -284,6 +296,10 @@ def compare_to_csv(cmp: dict) -> str:
     writer.writerow(["flag"])
     for flag in cmp["flags"]:
         writer.writerow([flag])
+    for key, side in (("proxy_hints_a", "A"), ("proxy_hints_b", "B")):
+        if cmp.get(key):
+            writer.writerow([])
+            _write_proxy_rows(writer, cmp[key], side)
     return buf.getvalue()
 
 

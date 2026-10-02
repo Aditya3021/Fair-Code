@@ -624,3 +624,22 @@ def test_compare_to_csv_has_group_rows_a_summary_section_and_flags():
 
     flag_rows = list(csv.DictReader(io.StringIO(blocks[2])))
     assert [r["flag"] for r in flag_rows] == cmp["flags"]
+
+
+def test_to_csv_includes_proxy_hints_section_only_when_present():
+    base = {"dimensions": [], "flags": []}
+    assert "proxy_hint_a" not in to_csv(base)
+    hints = [{"a": "sex", "b": "race", "p_value": 0.001, "cramers_v": 0.42, "chi2": 9.0}]
+    rows = list(csv.reader(io.StringIO(to_csv({**base, "proxy_hints": hints}))))
+    i = rows.index(["proxy_hint_a", "proxy_hint_b", "p_value", "cramers_v"])
+    assert rows[i + 1] == ["sex", "race", "0.001", "0.42"]
+
+
+def test_compare_to_csv_includes_labelled_proxy_hints_per_dataset():
+    base = {"dimensions": [], "flags": []}
+    hint = {"a": "sex", "b": "race", "p_value": 0.01, "cramers_v": 0.3, "chi2": 5.0}
+    text = compare_to_csv({**base, "proxy_hints_a": [hint], "proxy_hints_b": [hint]})
+    rows = list(csv.reader(io.StringIO(text)))
+    assert ["A", "sex", "race", "0.01", "0.3"] in rows
+    assert ["B", "sex", "race", "0.01", "0.3"] in rows
+    assert "dataset" in text

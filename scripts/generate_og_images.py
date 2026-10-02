@@ -197,6 +197,13 @@ def main():
                  "100% client-side, your data never leaves your browser.",
     )
 
+    render_card_both_themes(
+        "benchmark",
+        kicker="Fair Code · Benchmark Results",
+        title="Benchmark Results Dashboard",
+        subtitle="Explore fairness results across seven audits, five mitigation strategies, and three model families.",
+    )
+
     entries = json.loads(DATA_JSON.read_text(encoding="utf-8"))
     for entry in entries:
         render_card_both_themes(

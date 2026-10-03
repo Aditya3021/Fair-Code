@@ -21,8 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # addEventListener plumbing to actually execute assets/benchmark-dashboard.js
 # end to end (fetch mocked to serve the real results/ CSVs), then drive a
 # filter-select change, a "significant only" checkbox toggle, a sort-header
-# click, and a tab switch - the same interactions a person would perform in
-# a browser - and read back what actually got rendered.
+# click, a filter reset, and a tab switch - the same interactions a person
+# would perform in a browser - and read back what actually got rendered.
 _DOM_STUB = r"""
 'use strict';
 var fs = require('fs');
@@ -73,7 +73,7 @@ function makeEl(id) {
 
 var ids = ['loadBundledBtn', 'benchDropzone', 'benchFileInput', 'benchError', 'benchStatus',
   'benchResults', 'benchFilters', 'significantOnlyInput', 'benchSummary', 'benchTable',
-  'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn'];
+  'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn', 'benchResetBtn'];
 var elements = {};
 ids.forEach(function (id) { elements[id] = makeEl(id); });
 
@@ -183,6 +183,14 @@ var results = {};
   elements.benchExportBtn.click();
   results.export_csv = lastBlob;
 
+  results.reset_disabled_before_reset = elements.benchResetBtn.disabled;
+  elements.benchResetBtn.click();
+  results.summary_after_reset = elements.benchSummary.textContent;
+  results.significant_only_after_reset = elements.significantOnlyInput.checked;
+  results.sort_cleared_after_reset = elements.benchTable.innerHTML.indexOf('Value ▼') === -1;
+  results.url_after_reset = global.__lastUrl;
+  results.reset_disabled_after_reset = elements.benchResetBtn.disabled;
+
   var perfTab = global.__tabButtons[1];
   perfTab.click();
   results.performance_tab_summary = elements.benchSummary.textContent;
@@ -254,6 +262,17 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert len(lines) == len(compas_significant) + 1
     assert round(float(lines[1].split(",")[5]), 4) == _rounded(compas_significant["value"].max())
 
+    # Reset clears the active tab's dropdown filters and sort, as well as the
+    # cross-view significance toggle, then rewrites the deep link to defaults.
+    assert r["summary_after_reset"] == (
+        f"{total:,} of {total:,} rows shown · {total_significant:,} significant"
+    )
+    assert r["reset_disabled_before_reset"] is False
+    assert r["significant_only_after_reset"] is False
+    assert r["sort_cleared_after_reset"] is True
+    assert r["url_after_reset"] == "?tab=fairness"
+    assert r["reset_disabled_after_reset"] is True
+
 
 def _rounded(x):
     # Table cells are rendered with .toFixed(4); round the pandas ground
@@ -269,7 +288,8 @@ def test_benchmark_dashboard_ui_wiring_present_in_html_and_css():
     html = (REPO_ROOT / "benchmark.html").read_text(encoding="utf-8")
     for expected_id in ["loadBundledBtn", "benchDropzone", "benchFileInput", "benchError",
                          "benchStatus", "benchResults", "benchFilters", "significantOnlyInput",
-                         "benchSummary", "benchTable", "benchChart", "benchChartNote", "benchChartBlock"]:
+                         "benchSummary", "benchTable", "benchChart", "benchChartNote", "benchChartBlock",
+                         "benchResetBtn"]:
         assert f'id="{expected_id}"' in html, expected_id
 
     css = (REPO_ROOT / "assets" / "benchmark.css").read_text(encoding="utf-8")

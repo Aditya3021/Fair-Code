@@ -43,6 +43,7 @@
   var resultsEl = document.getElementById('benchResults');
   var filterBar = document.getElementById('benchFilters');
   var significantOnlyInput = document.getElementById('significantOnlyInput');
+  var resetFiltersBtn = document.getElementById('benchResetBtn');
   var summaryEl = document.getElementById('benchSummary');
   var tableHost = document.getElementById('benchTable');
   var chartHost = document.getElementById('benchChart');
@@ -192,6 +193,15 @@
     render();
   });
 
+  resetFiltersBtn.addEventListener('click', function () {
+    var kind = state.tab;
+    state.filters[kind] = {};
+    state.significantOnly = false;
+    significantOnlyInput.checked = false;
+    state.sort[kind] = null;
+    render();
+  });
+
   // ── Filtering + sorting ───────────────────────────────────────────────
   function uniqueValues(rows, field) {
     var seen = Object.create(null), out = [];
@@ -260,6 +270,9 @@
       label.appendChild(select);
       filterBar.appendChild(label);
     });
+    resetFiltersBtn.disabled = !FILTER_FIELDS[kind].some(function (field) {
+      return Boolean(state.filters[kind][field]);
+    }) && !(kind === 'fairness' && state.significantOnly) && !state.sort[kind];
   }
 
   // ── Rendering: table ──────────────────────────────────────────────────
@@ -437,6 +450,7 @@
     if (!data) {
       filterBar.innerHTML = '';
       significantOnlyInput.parentElement.hidden = true;
+      resetFiltersBtn.hidden = true;
       summaryEl.textContent = '';
       tableHost.innerHTML = '<p class="section-note">Load ' + kind + ' results above to explore them.</p>';
       chartHost.innerHTML = ''; chartHost.hidden = true; chartNote.textContent = '';
@@ -444,6 +458,7 @@
       return;
     }
     significantOnlyInput.parentElement.hidden = kind !== 'fairness';
+    resetFiltersBtn.hidden = false;
     renderFilters(kind);
     var rows = sortedRows(kind, filteredRows(kind));
     var sigCount = kind === 'fairness' ? rows.filter(function (r) { return r.significant; }).length : null;

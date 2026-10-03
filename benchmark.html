@@ -189,9 +189,12 @@
       </div>
 
       <div class="bench-filters" id="benchFilters"></div>
-      <label class="bench-sig-toggle">
-        <input type="checkbox" id="significantOnlyInput"> Significant results only (p &lt; 0.05)
-      </label>
+      <div class="bench-filter-actions">
+        <label class="bench-sig-toggle">
+          <input type="checkbox" id="significantOnlyInput"> Significant results only (p &lt; 0.05)
+        </label>
+        <button type="button" class="action-btn" id="benchResetBtn">Reset filters</button>
+      </div>
       <p class="bench-summary" id="benchSummary" aria-live="polite"></p>
       <button type="button" class="action-btn" id="benchExportBtn" hidden>⬇ Download filtered CSV</button>
 

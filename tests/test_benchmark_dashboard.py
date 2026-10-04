@@ -73,7 +73,8 @@ function makeEl(id) {
 
 var ids = ['loadBundledBtn', 'benchDropzone', 'benchFileInput', 'benchError', 'benchStatus',
   'benchResults', 'benchFilters', 'significantOnlyInput', 'benchSummary', 'benchTable',
-  'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn', 'benchResetBtn'];
+  'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn', 'benchResetBtn',
+  'benchClearBtn', 'benchLegend'];
 var elements = {};
 ids.forEach(function (id) { elements[id] = makeEl(id); });
 
@@ -178,10 +179,24 @@ var results = {};
   var valueBtn2 = elements.benchTable._sortButtons.filter(function (b) { return b.dataset.field === 'value'; })[0];
   if (valueBtn2) valueBtn2.click(); // descending
   results.first_row_value_desc = firstRowValue();
+  results.aria_sort_value = /<th aria-sort="descending"><button[^>]*data-field="value"/.test(elements.benchTable.innerHTML);
+  results.has_note_column = elements.benchTable.innerHTML.indexOf('<th>Note</th>') !== -1;
+  results.small_badges = (elements.benchTable.innerHTML.match(/bench-small-badge/g) || []).length;
+  results.legend_hidden = elements.benchLegend.hidden;
 
   results.export_btn_hidden = elements.benchExportBtn.hidden;
   elements.benchExportBtn.click();
   results.export_csv = lastBlob;
+
+  // Signed-metric chart (#776): all-compas dpd/race has negative values.
+  elements.benchResetBtn.click();
+  [['metric', 'demographic_parity_diff'], ['protected_attribute', 'race']].forEach(function (kv) {
+    var sel = createdSelects[kv[0]];
+    sel.value = kv[1];
+    (sel._listeners.change || []).forEach(function (f) { f(); });
+  });
+  results.signed_chart = elements.benchChart.innerHTML.indexOf('bar-track signed') !== -1;
+  results.neg_bars = (elements.benchChart.innerHTML.match(/bar-fill [a-z]+ neg/g) || []).length;
 
   results.reset_disabled_before_reset = elements.benchResetBtn.disabled;
   elements.benchResetBtn.click();
@@ -200,6 +215,11 @@ var results = {};
   (metricSelect._listeners.change || []).forEach(function (f) { f(); });
   results.perf_chart_bars = (elements.benchChart.innerHTML.match(/class="bar-row"/g) || []).length;
   results.perf_chart_hidden = elements.benchChart.hidden;
+  results.perf_chart_unsigned = elements.benchChart.innerHTML.indexOf('bar-track signed') === -1;
+
+  elements.benchClearBtn.click();
+  results.after_clear_summary = elements.benchSummary.textContent;
+  results.after_clear_status = elements.benchStatus.textContent;
 
   results.last_url = global.__lastUrl;
   process.stdout.write(JSON.stringify(results));
@@ -254,6 +274,21 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert "Pick a metric" in r["perf_chart_note_before"]
     assert r["perf_chart_hidden"] is False
     assert r["perf_chart_bars"] == len(perf_accuracy)
+
+    # #777 / #788 / #787: sort state is exposed, notes and small-sample rows are visible.
+    assert r["aria_sort_value"] is True
+    assert r["has_note_column"] is True
+    assert (r["small_badges"] > 0) == bool(compas_significant["small_sample_warning"].any())
+
+    # #776: a signed metric draws from a centre line, with negative bars marked.
+    sel = fairness[(fairness["metric"] == "demographic_parity_diff") & (fairness["protected_attribute"] == "race")]
+    assert r["signed_chart"] is bool((sel["value"] < 0).any())
+    assert r["neg_bars"] == int((sel["value"] < 0).sum())
+    assert r["perf_chart_unsigned"] is True
+
+    # #784: clearing unloads the active tab's data.
+    assert r["after_clear_summary"] == ""
+    assert "Cleared performance" in r["after_clear_status"]
 
     # #761: the export is the filtered + sorted view, header included.
     assert r["export_btn_hidden"] is False
@@ -317,3 +352,20 @@ def test_benchmark_dashboard_url_state_round_trips():
         assert part in url
     # ...and the stub's later switch to the performance tab rewrites it.
     assert "tab=performance" in r["last_url"]
+
+
+def test_benchmark_dashboard_detect_kind_rejects_summary_csv():
+    """#775: results/summary.csv (protected_attribute + mean_value, no value
+    column) must not be mis-detected as a fairness file."""
+    src = (REPO_ROOT / "assets" / "benchmark-dashboard.js").read_text(encoding="utf-8")
+    start = src.index("function detectKind")
+    fn = src[start:src.index("function ingest")]
+    script = fn + "process.stdout.write(JSON.stringify([" + ",".join(
+        f"detectKind({json.dumps(cols)})" for cols in (
+            list(pd.read_csv(REPO_ROOT / "results" / "results_fairness.csv", nrows=0).columns),
+            list(pd.read_csv(REPO_ROOT / "results" / "results_performance.csv", nrows=0).columns),
+            list(pd.read_csv(REPO_ROOT / "results" / "summary.csv", nrows=0).columns),
+        )) + "]));"
+    out = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True,
+                                    encoding="utf-8", check=True).stdout)
+    assert out == ["fairness", "performance", None]

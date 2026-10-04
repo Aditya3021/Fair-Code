@@ -34,6 +34,8 @@
 
   var pending = { filters: {}, sort: {} }; // from the URL, applied when that tab's data loads
   var exportBtn = document.getElementById('benchExportBtn');
+  var clearBtn = document.getElementById('benchClearBtn');
+  var legendEl = document.getElementById('benchLegend');
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.bench-tab'));
   var loadBundledBtn = document.getElementById('loadBundledBtn');
   var dropzone = document.getElementById('benchDropzone');
@@ -65,9 +67,15 @@
   }
 
   // ── Loading ───────────────────────────────────────────────────────────
+  // results_fairness.csv has protected_attribute + value + p_value;
+  // results_performance.csv has audit + metric + value but no protected_attribute.
+  // summary.csv (protected_attribute + mean_value, no value column) is a
+  // cross-model roll-up, not a per-run file, so it is rejected rather than
+  // mis-loaded as fairness rows with blank values (#775).
   function detectKind(columns) {
-    if (columns.indexOf('protected_attribute') !== -1) return 'fairness';
-    if (columns.indexOf('audit') !== -1 && columns.indexOf('metric') !== -1) return 'performance';
+    var has = function (c) { return columns.indexOf(c) !== -1; };
+    if (has('protected_attribute') && has('value') && has('p_value')) return 'fairness';
+    if (has('audit') && has('metric') && has('value') && !has('protected_attribute')) return 'performance';
     return null;
   }
 
@@ -91,8 +99,16 @@
       }
       return row;
     });
+    var carried = {};
+    if (!pending.filters[kind] && state[kind]) {
+      // Reloading keeps the filters that still match something in the new rows.
+      Object.keys(state.filters[kind] || {}).forEach(function (f) {
+        var v = state.filters[kind][f];
+        if (v && rows.some(function (r) { return r[f] === v; })) carried[f] = v;
+      });
+    }
     state[kind] = { rows: rows };
-    state.filters[kind] = pending.filters[kind] || {};
+    state.filters[kind] = pending.filters[kind] || carried;
     state.sort[kind] = pending.sort[kind] || null;
     pending.filters[kind] = null;
     pending.sort[kind] = null;
@@ -140,7 +156,7 @@
         var kind = detectKind(table.columns);
         if (!kind) {
           showError(file.name + ' does not look like a results_fairness.csv or ' +
-            'results_performance.csv export (no "protected_attribute" or "audit"/"metric" columns).');
+            'results_performance.csv export (expected value/p_value columns; summary.csv roll-ups are not supported).');
           return;
         }
         showError('');
@@ -177,6 +193,16 @@
   dropzone.addEventListener('drop', function (e) {
     var files = e.dataTransfer && e.dataTransfer.files;
     if (files) Array.prototype.forEach.call(files, readDroppedFile);
+  });
+
+  // ── Clear loaded data (#784) ──────────────────────────────────────────
+  clearBtn.addEventListener('click', function () {
+    var kind = state.tab;
+    state[kind] = null;
+    state.filters[kind] = {};
+    state.sort[kind] = null;
+    statusEl.textContent = 'Cleared ' + kind + ' results.';
+    render();
   });
 
   // ── Tabs ──────────────────────────────────────────────────────────────
@@ -285,7 +311,8 @@
     var sort = state.sort[kind];
     var active = sort && sort.field === field;
     var arrow = active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return '<th><button type="button" class="bench-sort-btn" data-field="' + field + '">' +
+    var ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none';
+    return '<th aria-sort="' + ariaSort + '"><button type="button" class="bench-sort-btn" data-field="' + field + '">' +
       esc(label) + arrow + '</button></th>';
   }
 
@@ -299,7 +326,8 @@
       ? headerCell(kind, 'audit', 'Audit') + headerCell(kind, 'strategy', 'Strategy') +
         headerCell(kind, 'model', 'Model') + headerCell(kind, 'protected_attribute', 'Attribute') +
         headerCell(kind, 'metric', 'Metric') + headerCell(kind, 'value', 'Value') +
-        '<th>95% CI</th>' + headerCell(kind, 'p_value', 'p-value') + headerCell(kind, 'significant', 'Sig.')
+        '<th>95% CI</th>' + headerCell(kind, 'p_value', 'p-value') + headerCell(kind, 'significant', 'Sig.') +
+        '<th>Note</th>'
       : headerCell(kind, 'audit', 'Audit') + headerCell(kind, 'strategy', 'Strategy') +
         headerCell(kind, 'model', 'Model') + headerCell(kind, 'metric', 'Metric') +
         headerCell(kind, 'value', 'Value') + '<th>95% CI</th>' + headerCell(kind, 'n', 'N');
@@ -309,12 +337,15 @@
       if (isFairness) {
         var sigCls = r.significant ? 'bench-sig-yes' : 'bench-sig-no';
         var rowCls = r.small_sample_warning ? ' class="bench-row-warn"' : '';
-        return '<tr' + rowCls + (r.note ? ' title="' + esc(r.note) + '"' : '') + '>' +
+        var badge = r.small_sample_warning
+          ? ' <span class="bench-small-badge">⚠ small sample</span>' : '';
+        return '<tr' + rowCls + '>' +
           '<td>' + esc(r.audit) + '</td><td>' + esc(r.strategy) + '</td><td>' + esc(r.model) + '</td>' +
-          '<td>' + esc(r.protected_attribute) + '</td><td>' + esc(r.metric) + '</td>' +
+          '<td>' + esc(r.protected_attribute) + '</td><td>' + esc(r.metric) + badge + '</td>' +
           '<td>' + valueText + '</td><td>' + ciText(r) + '</td>' +
           '<td>' + (r.p_value === null ? '' : r.p_value.toExponential(2)) + '</td>' +
-          '<td class="' + sigCls + '">' + (r.significant ? 'yes' : 'no') + '</td></tr>';
+          '<td class="' + sigCls + '">' + (r.significant ? 'yes' : 'no') + '</td>' +
+          '<td class="bench-note">' + (r.note ? esc(r.note) : '') + '</td></tr>';
       }
       return '<tr>' +
         '<td>' + esc(r.audit) + '</td><td>' + esc(r.strategy) + '</td><td>' + esc(r.model) + '</td>' +
@@ -360,15 +391,21 @@
     var maxAbs = rows.reduce(function (m, r) {
       return r.value === null ? m : Math.max(m, Math.abs(r.value));
     }, 0) || 1;
+    // Signed metrics (e.g. demographic_parity_diff) draw from a centre line so
+    // direction is visible, not just magnitude (#776).
+    var signed = rows.some(function (r) { return r.value !== null && r.value < 0; });
 
     var sorted = rows.slice().sort(function (a, b) { return Math.abs(b.value || 0) - Math.abs(a.value || 0); });
     chartHost.innerHTML = sorted.map(function (r) {
-      var w = r.value === null ? 0 : (Math.abs(r.value) / maxAbs) * 100;
       var cls = kind === 'fairness' && r.significant ? 'bad' : 'good';
+      var mag = r.value === null ? 0 : Math.abs(r.value) / maxAbs * (signed ? 50 : 100);
+      var offset = signed ? (r.value !== null && r.value < 0 ? 50 - mag : 50) : 0;
+      var style = 'width:' + mag.toFixed(1) + '%' + (offset ? ';margin-left:' + offset.toFixed(1) + '%' : '');
       var label = r.audit + ' · ' + r.strategy + ' · ' + r.model;
       return '<div class="bar-row">' +
         '<span class="bar-label" title="' + esc(label) + '">' + esc(label) + '</span>' +
-        '<span class="bar-track"><span class="bar-fill ' + cls + '" style="width:' + w.toFixed(1) + '%"></span></span>' +
+        '<span class="bar-track' + (signed ? ' signed' : '') + '"><span class="bar-fill ' + cls +
+          (r.value !== null && r.value < 0 ? ' neg' : '') + '" style="' + style + '"></span></span>' +
         '<span class="bar-pct">' + (r.value === null ? 'n/a' : r.value.toFixed(4)) + '</span>' +
         '</div>';
     }).join('');
@@ -450,6 +487,8 @@
       tableHost.innerHTML = '<p class="section-note">Load ' + kind + ' results above to explore them.</p>';
       chartHost.innerHTML = ''; chartHost.hidden = true; chartNote.textContent = '';
       exportBtn.hidden = true;
+      clearBtn.hidden = true;
+      legendEl.hidden = true;
       return;
     }
     significantOnlyInput.parentElement.hidden = kind !== 'fairness';
@@ -462,6 +501,8 @@
     renderTable(kind, rows);
     renderChart(kind, rows);
     exportBtn.hidden = false;
+    clearBtn.hidden = false;
+    legendEl.hidden = !(kind === 'fairness' && rows.some(function (r) { return r.small_sample_warning; }));
     writeUrlState();
   }
 

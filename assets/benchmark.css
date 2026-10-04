@@ -151,3 +151,9 @@
 .bench-chart-block { margin-top: 8px; margin-bottom: 32px; }
 .bar-fill.bad { background: var(--accent); }
 .bar-fill.good { background: var(--accent3); }
+
+.bench-small-badge { color: var(--warn); font-size: 11px; white-space: nowrap; }
+.bench-note { white-space: normal; min-width: 180px; color: var(--muted); }
+.bar-track.signed { background-image: linear-gradient(var(--border2), var(--border2));
+  background-size: 1px 100%; background-position: 50% 0; background-repeat: no-repeat; }
+.bar-fill.neg { opacity: 0.75; }

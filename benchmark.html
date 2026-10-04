@@ -196,7 +196,10 @@
         <button type="button" class="action-btn" id="benchResetBtn">Reset filters</button>
       </div>
       <p class="bench-summary" id="benchSummary" aria-live="polite"></p>
+      <p class="bench-summary" id="benchLegend" hidden><span class="bench-small-badge">⚠ small sample</span>
+        = one compared group has fewer than 30 rows; treat its CI and p-value as unreliable.</p>
       <button type="button" class="action-btn" id="benchExportBtn" hidden>⬇ Download filtered CSV</button>
+      <button type="button" class="action-btn" id="benchClearBtn" hidden>✕ Clear loaded data</button>
 
       <div class="bench-chart-block" id="benchChartBlock">
         <h3 class="section-title">Chart</h3>

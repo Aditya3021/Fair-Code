@@ -118,6 +118,22 @@ def _build_held_out(specs, df):
         raise SystemExit(2)
 
 
+def _write_csv_export(path, text):
+    """Write a --csv export to PATH, or to stdout when PATH is "-" (#779).
+    Returns True on failure (after printing the error), like the other writers."""
+    if path == "-":
+        sys.stdout.write(text)
+        return False
+    try:
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+    except OSError as exc:
+        print(f"error: could not write CSV export to {path}: {exc}", file=sys.stderr)
+        return True
+    print(f"CSV export written to {path}", file=sys.stderr)
+    return False
+
+
 def _read_or_exit(path: str):
     """Read a table, or print a plain error and raise SystemExit(2)."""
     try:
@@ -154,8 +170,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--html", metavar="PATH",
                    help="write a standalone HTML report to PATH")
     p.add_argument("--csv", dest="csv_out", metavar="PATH",
-                   help="write a flat, one-row-per-group CSV export to PATH "
-                        "(dest csv_out - distinct from the csv dataset argument)")
+                   help="write a flat, one-row-per-group CSV export to PATH, or - for "
+                        "stdout (dest csv_out - distinct from the csv dataset argument)")
     p.add_argument("--fail-under", type=float, metavar="N",
                    help="exit 1 when the overall representation score is below N")
     p.add_argument("--map", action="append", metavar="COL=KIND",
@@ -203,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--html", metavar="PATH",
                    help="write a standalone HTML report to PATH")
     c.add_argument("--csv", dest="csv_out", metavar="PATH",
-                   help="write a flat, one-row-per-group CSV export to PATH")
+                   help="write a flat, one-row-per-group CSV export to PATH, or - for stdout")
     c.add_argument("--proxy-hints", action="store_true",
                    help="flag strongly-associated column pairs via chi-squared, "
                         "for both datasets separately (needs scipy)")
@@ -361,15 +377,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             print(f"HTML report written to {args.html}", file=sys.stderr)
 
+        if args.csv_out == "-" and args.json:
+            print("error: --csv - and --json both write to stdout; use one",
+                  file=sys.stderr)
+            return 2
         if args.csv_out:
-            try:
-                with open(args.csv_out, "w", encoding="utf-8", newline="") as fh:
-                    fh.write(to_csv(result))
-            except OSError as exc:
-                print(f"error: could not write CSV export to {args.csv_out}: {exc}",
-                      file=sys.stderr)
+            if _write_csv_export(args.csv_out, to_csv(result)):
                 return 2
-            print(f"CSV export written to {args.csv_out}", file=sys.stderr)
 
         if args.json:
             provenance = None
@@ -382,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
                     provenance["dataset_hash"] = "sha256:" + hashlib.sha256(
                         build_sample_csv().encode("utf-8")).hexdigest()
             print(to_json(result, provenance=provenance))
-        else:
+        elif args.csv_out != "-":  # stdout already carries the CSV
             print(to_terminal(result))
         if args.fail_under is not None and result["overall_score"] is None:
             print(
@@ -483,15 +497,13 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             print(f"HTML report written to {args.html}", file=sys.stderr)
 
+        if args.csv_out == "-" and args.json:
+            print("error: --csv - and --json both write to stdout; use one",
+                  file=sys.stderr)
+            return 2
         if args.csv_out:
-            try:
-                with open(args.csv_out, "w", encoding="utf-8", newline="") as fh:
-                    fh.write(compare_to_csv(result))
-            except OSError as exc:
-                print(f"error: could not write CSV export to {args.csv_out}: {exc}",
-                      file=sys.stderr)
+            if _write_csv_export(args.csv_out, compare_to_csv(result)):
                 return 2
-            print(f"CSV export written to {args.csv_out}", file=sys.stderr)
         if args.json:
             provenance = None
             if not args.no_provenance:
@@ -499,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
                     [("dataset_hash_a", args.csv_a), ("dataset_hash_b", args.csv_b)],
                     _resolve_opts(opts), overrides)
             print(to_json(result, provenance=provenance))
-        else:
+        elif args.csv_out != "-":
             print(compare_to_terminal(result))
         if args.fail_on_drift and result["drift_detected"]:
             print(

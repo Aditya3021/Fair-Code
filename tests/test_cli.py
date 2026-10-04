@@ -1073,3 +1073,25 @@ def test_cli_benchmark_success_run(tmp_path, capsys):
     assert (out_dir / "results_fairness.csv").is_file()
     assert (out_dir / "results_performance.csv").is_file()
     assert (out_dir / "summary.csv").is_file()
+
+
+def test_profile_csv_dash_writes_only_the_csv_to_stdout(tmp_path, capsys, monkeypatch):
+    """#779: --csv - streams the export to stdout (no terminal report mixed in,
+    no file literally named "-")."""
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["profile", str(path), "--csv", "-"]) == 0
+
+    out = capsys.readouterr().out
+    assert out.startswith("dimension,kind,label,count,share,")
+    assert "PROXY" not in out and "Dataset" not in out.splitlines()[0]
+    assert not (tmp_path / "-").exists()
+
+
+def test_compare_csv_dash_and_json_together_return_2(tmp_path, capsys):
+    a = tmp_path / "a.csv"
+    a.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    assert main(["compare", str(a), str(a), "--csv", "-", "--json"]) == 2
+    assert "both write to stdout" in capsys.readouterr().err

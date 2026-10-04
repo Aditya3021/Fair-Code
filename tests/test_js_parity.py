@@ -572,6 +572,14 @@ def test_python_js_compare_parity_age_banding_mismatch(tmp_path):
     assert dim["kind_a"] == dim["kind_b"] == "age"
 
 
+def test_proxy_hint_results_are_live_regions():
+    """Proxy-hint results should be announced to screen-reader users."""
+    html = (REPO_ROOT / "profiler.html").read_text(encoding="utf-8")
+
+    assert 'id="proxyHintsResults" aria-live="polite"' in html
+    assert 'id="compareProxyHintsResults" aria-live="polite"' in html
+    
+    
 @pytest.mark.parametrize("csv_name", list(CSV_PATHS))
 def test_python_js_compare_parity(csv_name):
     """faircode.compare() and the JS engine's compare() should agree too (#111).

@@ -621,3 +621,45 @@ def test_get_benchmark_results_tool_error_surfaces_via_call_tool():
 
     with pytest.raises(ToolError, match="kind must be one of"):
         asyncio.run(call())
+
+
+@requires_scipy
+def test_compare_datasets_held_out_with_a_flags_a_dropped_column_on_that_side(tmp_path):
+    """#782: compare_datasets mirrors the CLI's --proxy-hints-with-a/-b."""
+    zip_code = ["111"] * 100 + ["222"] * 100
+    race = ["A"] * 100 + ["B"] * 100
+    a = tmp_path / "a.csv"
+    a.write_text("zip_code\n" + "\n".join(zip_code), encoding="utf-8")
+    full = tmp_path / "full.csv"
+    full.write_text("zip_code,race\n" + "\n".join(f"{z},{r}" for z, r in zip(zip_code, race)),
+                    encoding="utf-8")
+    b = tmp_path / "b.csv"
+    b.write_text("zip_code\n" + "\n".join(zip_code), encoding="utf-8")
+
+    result = _compare_datasets_impl(str(a), str(b), proxy_hints=True,
+                                    held_out_with_a=[f"{full}=race"])
+
+    assert any({h["a"], h["b"]} == {"zip_code", "race"} for h in result["proxy_hints_a"])
+    assert result["proxy_hints_b"] == []
+
+
+def test_compare_datasets_held_out_needs_proxy_hints(tmp_path):
+    a = tmp_path / "a.csv"
+    a.write_text("sex\nM\nF\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="need proxy_hints"):
+        _compare_datasets_impl(str(a), str(a), held_out_with_a=[f"{a}=sex"])
+
+
+@requires_scipy
+def test_proxy_hints_alpha_is_tunable_and_validated(tmp_path):
+    """#786: a stricter alpha drops a borderline pair; invalid alpha is rejected."""
+    rows = ["sex,occupation"] + [
+        f"{'male' if i % 2 == 0 else 'female'},{'engineer' if i % 2 == 0 else 'nurse'}"
+        for i in range(100)
+    ]
+    p = tmp_path / "d.csv"
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    assert _proxy_hints_impl(str(p))["hints"]
+    assert _proxy_hints_impl(str(p), alpha=1e-300)["hints"] == []
+    with pytest.raises(ValueError, match="alpha"):
+        _proxy_hints_impl(str(p), alpha=0)

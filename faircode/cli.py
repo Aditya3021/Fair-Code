@@ -118,6 +118,11 @@ def _build_held_out(specs, df):
         raise SystemExit(2)
 
 
+def _alpha(args):
+    from .proxy import PROXY_ALPHA
+    return PROXY_ALPHA if args.proxy_alpha is None else args.proxy_alpha
+
+
 def _write_csv_export(path, text):
     """Write a --csv export to PATH, or to stdout when PATH is "-" (#779).
     Returns True on failure (after printing the error), like the other writers."""
@@ -184,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="score against a reference baseline dataset (columns: column,group,share)")
     p.add_argument("--proxy-hints", action="store_true",
                    help="flag strongly-associated column pairs via chi-squared (needs scipy)")
+    p.add_argument("--proxy-alpha", type=float, default=None, metavar="ALPHA",
+                   help="significance level for --proxy-hints (default 0.05; must be in (0, 1])")
     p.add_argument("--proxy-hints-with", action="append", metavar="PATH=COLUMN",
                    help="also test proxy_hints against a column already dropped from "
                         "the dataset; PATH's rows must align 1:1 with the profiled "
@@ -223,6 +230,8 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--proxy-hints", action="store_true",
                    help="flag strongly-associated column pairs via chi-squared, "
                         "for both datasets separately (needs scipy)")
+    c.add_argument("--proxy-alpha", type=float, default=None, metavar="ALPHA",
+                   help="significance level for --proxy-hints (default 0.05; must be in (0, 1])")
     c.add_argument("--proxy-hints-with-a", action="append", metavar="PATH=COLUMN",
                    help="also test dataset A's proxy_hints against a column already "
                         "dropped from A; PATH's rows must align 1:1 with csv_a "
@@ -282,6 +291,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if not args.sample and not args.csv:
             print("error: profile needs a csv argument (or --sample)", file=sys.stderr)
+            return 2
+        if args.proxy_alpha is not None and not 0 < args.proxy_alpha <= 1:
+            print("error: --proxy-alpha must be in (0, 1]", file=sys.stderr)
             return 2
         if args.proxy_hints_with and not args.proxy_hints:
             print("error: --proxy-hints-with needs --proxy-hints", file=sys.stderr)
@@ -361,7 +373,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.proxy_hints or args.proxy_hints_with:
             held_out = _build_held_out(args.proxy_hints_with, df)
             try:
-                result["proxy_hints"] = proxy_hints(df, result["dimensions"], held_out=held_out)
+                result["proxy_hints"] = proxy_hints(df, result["dimensions"], alpha=_alpha(args), held_out=held_out)
             except RuntimeError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 2
@@ -417,6 +429,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.csv_a == "-" and args.csv_b == "-":
             print("error: --compare can't read both datasets from stdin "
                   "(a stream can only be read once)", file=sys.stderr)
+            return 2
+        if args.proxy_alpha is not None and not 0 < args.proxy_alpha <= 1:
+            print("error: --proxy-alpha must be in (0, 1]", file=sys.stderr)
             return 2
         if (args.proxy_hints_with_a or args.proxy_hints_with_b) and not args.proxy_hints:
             print("error: --proxy-hints-with-a/-b needs --proxy-hints", file=sys.stderr)
@@ -480,8 +495,8 @@ def main(argv: list[str] | None = None) -> int:
             held_out_a = _build_held_out(args.proxy_hints_with_a, df_a)
             held_out_b = _build_held_out(args.proxy_hints_with_b, df_b)
             try:
-                result["proxy_hints_a"] = proxy_hints(df_a, profile_a["dimensions"], held_out=held_out_a)
-                result["proxy_hints_b"] = proxy_hints(df_b, profile_b["dimensions"], held_out=held_out_b)
+                result["proxy_hints_a"] = proxy_hints(df_a, profile_a["dimensions"], alpha=_alpha(args), held_out=held_out_a)
+                result["proxy_hints_b"] = proxy_hints(df_b, profile_b["dimensions"], alpha=_alpha(args), held_out=held_out_b)
             except RuntimeError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 2

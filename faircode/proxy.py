@@ -94,6 +94,8 @@ def proxy_hints(df: pd.DataFrame, dimensions: list, alpha=PROXY_ALPHA,
     other, treated as plain categorical values (no age-band normalization,
     since there's no detected `kind` for a column that was never profiled).
     """
+    if not 0 < alpha <= 1:
+        raise ValueError(f"alpha must be in (0, 1], got {alpha}")
     try:
         from scipy.stats import chi2_contingency
     except ImportError as exc:  # pragma: no cover - depends on optional extra

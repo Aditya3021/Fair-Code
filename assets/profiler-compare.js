@@ -703,10 +703,26 @@
   // Opt-in proxy hints for both datasets (issue #757), mirroring
   // `faircode compare --proxy-hints`; attached to currentCmp so the HTML
   // report, JSON copy and CSV include them.
+
+  // Significance level for the proxy check (--proxy-alpha, #786): blank means
+  // the 0.05 default; anything outside (0, 1] is rejected like the CLI does.
+  function readProxyAlpha(input, host) {
+    var raw = input.value.trim();
+    if (raw === '') return 0.05;
+    var a = parseFloat(raw);
+    if (!(a > 0 && a <= 1)) {
+      host.innerHTML = '<p class="profiler-error">Significance level must be in (0, 1].</p>';
+      return null;
+    }
+    return a;
+  }
+
   function renderCompareProxyHints() {
     if (!currentCmp || !currentProfiles) return;
-    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions);
-    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions);
+    var alpha = readProxyAlpha(document.getElementById('compareProxyAlphaInput'), proxyResultsEl);
+    if (alpha === null) return;
+    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha);
+    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions, alpha);
     proxyResultsEl.innerHTML = [['proxy_hints_a', 'A'], ['proxy_hints_b', 'B']].map(function (k) {
       var hints = currentCmp[k[0]];
       return '<h4 class="proxy-hint-side">Dataset ' + k[1] + '</h4>' + (hints.length
@@ -715,7 +731,7 @@
               esc(h.b) + '</span><span class="proxy-hint-stats">p ' + h.p_value.toExponential(2) +
               ' · Cramer’s V ' + h.cramers_v.toFixed(4) + '</span></div>';
           }).join('') + '</div>'
-        : '<p class="section-note">No column pairs are significantly associated (p &lt; 0.05).</p>');
+        : '<p class="section-note">No column pairs are significantly associated (p &lt; ' + alpha + ').</p>');
     }).join('');
   }
 

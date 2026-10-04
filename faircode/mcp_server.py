@@ -184,10 +184,13 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
                            imbalance_flag=None, missing_flag=None,
                            min_group_size=None, include_provenance=True,
                            proxy_hints=False, max_categorical_card=None,
-                           max_dimension_groups=None):
+                           max_dimension_groups=None, held_out_with_a=None,
+                           held_out_with_b=None, alpha=None):
     overrides = overrides or {}
     df_a = _read_table_or_raise(path_a)
     df_b = _read_table_or_raise(path_b)
+    if (held_out_with_a or held_out_with_b) and not proxy_hints:
+        raise ValueError("held_out_with_a/held_out_with_b need proxy_hints=true")
     _check_overrides(overrides, set(df_a.columns) | set(df_b.columns))
     opts = _build_opts(min_share, intersection_floor, imbalance_flag,
                        missing_flag, min_group_size,
@@ -202,8 +205,15 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
     if note_b:
         result["sheet_note_b"] = note_b
     if proxy_hints:
-        result["proxy_hints_a"] = compute_proxy_hints(df_a, profile_a["dimensions"])
-        result["proxy_hints_b"] = compute_proxy_hints(df_b, profile_b["dimensions"])
+        kw = {} if alpha is None else {"alpha": alpha}
+        held_a = parse_held_out_specs(held_out_with_a, df_a, _read_table_or_raise,
+                                      flag="held_out_with_a") if held_out_with_a else None
+        held_b = parse_held_out_specs(held_out_with_b, df_b, _read_table_or_raise,
+                                      flag="held_out_with_b") if held_out_with_b else None
+        result["proxy_hints_a"] = compute_proxy_hints(df_a, profile_a["dimensions"],
+                                                      held_out=held_a, **kw)
+        result["proxy_hints_b"] = compute_proxy_hints(df_b, profile_b["dimensions"],
+                                                      held_out=held_b, **kw)
     if include_provenance:
         provenance = build_provenance(
             [("dataset_hash_a", path_a), ("dataset_hash_b", path_b)],
@@ -212,7 +222,7 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
     return result
 
 
-def _proxy_hints_impl(path, overrides=None, held_out_with=None):
+def _proxy_hints_impl(path, overrides=None, held_out_with=None, alpha=None):
     """`overrides` forces a column's detected kind the same way profile()'s
     own `overrides` does; no other threshold knob affects this tool -
     proxy_hints() (faircode/proxy.py) tests every detected dimension
@@ -243,7 +253,8 @@ def _proxy_hints_impl(path, overrides=None, held_out_with=None):
     result = profile(df, overrides)
     held_out = parse_held_out_specs(held_out_with, df, _read_table_or_raise,
                                     flag="held_out_with") if held_out_with else None
-    output = {"hints": compute_proxy_hints(df, result["dimensions"], held_out=held_out)}
+    kw = {} if alpha is None else {"alpha": alpha}
+    output = {"hints": compute_proxy_hints(df, result["dimensions"], held_out=held_out, **kw)}
     notes = [n for n in (_sheet_note(path),) if n]
     notes += [n for spec in (held_out_with or []) for n in (_sheet_note(spec.partition("=")[0]),) if n]
     if notes:
@@ -430,7 +441,10 @@ def build_server():
                          include_provenance: bool = True,
                          proxy_hints: bool = False,
                          max_categorical_card: int | None = None,
-                         max_dimension_groups: int | None = None) -> dict:
+                         max_dimension_groups: int | None = None,
+                         held_out_with_a: list[str] | None = None,
+                         held_out_with_b: list[str] | None = None,
+                         alpha: float | None = None) -> dict:
         """Compare two tabular datasets (e.g. a training set and a production
         snapshot) for representation drift: which dimensions/groups appeared,
         disappeared, or shifted share, plus a population-stability-index-based
@@ -446,21 +460,28 @@ def build_server():
         `proxy_hints` tool computes, run separately against each dataset - so
         a single call can get drift and both datasets' proxy hints together,
         matching `faircode compare --proxy-hints`. Needs the optional 'scipy'
-        extra (`pip install faircode[proxy]`).
+        extra (`pip install faircode[proxy]`). `held_out_with_a`/`held_out_with_b`
+        (need `proxy_hints`) are lists of "PATH=COLUMN" strings testing a column
+        already dropped from dataset A / B, mirroring the CLI's
+        --proxy-hints-with-a/-b; `alpha` (default 0.05, in (0, 1]) is the
+        proxy-hint significance level (--proxy-alpha).
         """
         try:
             return _compare_datasets_impl(
                 path_a, path_b, overrides, min_share, intersection_floor,
                 imbalance_flag, missing_flag, min_group_size, include_provenance,
-                proxy_hints, max_categorical_card, max_dimension_groups)
+                proxy_hints, max_categorical_card, max_dimension_groups,
+                held_out_with_a, held_out_with_b, alpha)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 
     @server.tool()
     def proxy_hints(path: str, overrides: dict[str, str] | None = None,
-                    held_out_with: list[str] | None = None) -> dict:
+                    held_out_with: list[str] | None = None,
+                    alpha: float | None = None) -> dict:
         """Flag pairs of detected demographic columns that are strongly
-        statistically associated (chi-squared test of independence, p < 0.05)
+        statistically associated (chi-squared test of independence, p < `alpha`,
+        default 0.05, in (0, 1])
         - a "this column may be a proxy for that protected attribute" signal.
         Returns {"hints": [...]}, most-significant pair first; an empty list
         means no pair crossed the significance threshold, not an error.
@@ -483,7 +504,7 @@ def build_server():
         section 3 and issue #328.
         """
         try:
-            return _proxy_hints_impl(path, overrides, held_out_with)
+            return _proxy_hints_impl(path, overrides, held_out_with, alpha)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 

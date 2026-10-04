@@ -1095,3 +1095,24 @@ def test_compare_csv_dash_and_json_together_return_2(tmp_path, capsys):
     a.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
     assert main(["compare", str(a), str(a), "--csv", "-", "--json"]) == 2
     assert "both write to stdout" in capsys.readouterr().err
+
+
+def test_profile_proxy_alpha_out_of_range_returns_2(tmp_path, capsys):
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    assert main(["profile", str(path), "--proxy-hints", "--proxy-alpha", "1.5"]) == 2
+    assert "--proxy-alpha must be in (0, 1]" in capsys.readouterr().err
+
+
+def test_profile_proxy_alpha_changes_which_pairs_are_reported(tmp_path, capsys):
+    pytest.importorskip("scipy")
+    rows = ["sex,occupation"] + [
+        f"{'male' if i % 2 == 0 else 'female'},{'engineer' if i % 2 == 0 else 'nurse'}"
+        for i in range(100)
+    ]
+    path = tmp_path / "d.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    assert main(["profile", str(path), "--proxy-hints", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["proxy_hints"]
+    assert main(["profile", str(path), "--proxy-hints", "--proxy-alpha", "1e-300", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["proxy_hints"] == []

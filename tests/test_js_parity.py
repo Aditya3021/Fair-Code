@@ -785,7 +785,7 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
 
     ui = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
     assert "proxyHintsBtn.addEventListener('click', renderProxyHints)" in ui
-    assert "E.proxyHints(currentTable, currentResult.dimensions)" in ui
+    assert "E.proxyHints(currentTable, currentResult.dimensions, alpha)" in ui
 
 
 def _run_ui_exports(csv_path, with_hints):
@@ -903,3 +903,21 @@ def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path)
     assert head(out["plain"]) == head(py)
     assert "dataset,proxy_hint_a,proxy_hint_b,p_value,cramers_v" in out["csv"]
     assert "Proxy hints - A" in out["html"] and "Proxy hints - B" in out["html"]
+
+
+def test_compare_view_download_csv_and_proxy_controls_are_wired():
+    """#789: the compare view's new controls exist in profiler.html and are
+    bound in profiler-compare.js; renaming an id in either file would
+    otherwise break the buttons with the suite green. Also covers the
+    --proxy-alpha inputs (#786) for both views."""
+    html = (REPO_ROOT / "profiler.html").read_text(encoding="utf-8")
+    js = (REPO_ROOT / "assets" / "profiler-compare.js").read_text(encoding="utf-8")
+    for element_id in ("compareDownloadCsvBtn", "compareProxyHintsBtn",
+                       "compareProxyHintsBlock", "compareProxyHintsResults",
+                       "compareProxyAlphaInput", "proxyAlphaInput"):
+        assert f'id="{element_id}"' in html, element_id
+        if element_id != "proxyAlphaInput":
+            assert f"getElementById('{element_id}')" in js, element_id
+    assert "downloadCsvBtn.addEventListener('click', downloadCompareCsvReport)" in js
+    assert "proxyBtn.addEventListener('click', renderCompareProxyHints)" in js
+    assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha)" in js

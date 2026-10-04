@@ -290,6 +290,9 @@
           "this column may be a proxy for a protected attribute" signal. Informational only;
           it never affects the score above.
         </p>
+        <label class="proxy-alpha">Significance level (<code>--proxy-alpha</code>)
+          <input type="number" class="threshold-input" id="proxyAlphaInput" step="any" min="0" max="1" placeholder="0.05" inputmode="decimal">
+        </label>
         <button type="button" class="proxy-hints-btn" id="proxyHintsBtn">Check for proxy columns</button>
         <div id="proxyHintsResults"></div>
       </div>
@@ -388,6 +391,9 @@
           Opt-in chi-squared check, run separately on each dataset, for column pairs strongly
           associated with each other. Informational only; it never affects either score.
         </p>
+        <label class="proxy-alpha">Significance level (<code>--proxy-alpha</code>)
+          <input type="number" class="threshold-input" id="compareProxyAlphaInput" step="any" min="0" max="1" placeholder="0.05" inputmode="decimal">
+        </label>
         <button type="button" class="proxy-hints-btn" id="compareProxyHintsBtn">Check for proxy columns</button>
         <div id="compareProxyHintsResults"></div>
       </div>

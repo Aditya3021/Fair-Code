@@ -405,16 +405,32 @@
   // ── Proxy-hint detection (issue #738) ────────────────────────────────────
   // Opt-in: computed on click, not on every render, since the chi-squared
   // pass over every dimension pair is work most visits never ask for.
+
+  // Significance level for the proxy check (--proxy-alpha, #786): blank means
+  // the 0.05 default; anything outside (0, 1] is rejected like the CLI does.
+  function readProxyAlpha(input, host) {
+    var raw = input.value.trim();
+    if (raw === '') return 0.05;
+    var a = parseFloat(raw);
+    if (!(a > 0 && a <= 1)) {
+      host.innerHTML = '<p class="profiler-error">Significance level must be in (0, 1].</p>';
+      return null;
+    }
+    return a;
+  }
+
   function renderProxyHints() {
     if (!currentTable || !currentResult) return;
     var host = document.getElementById('proxyHintsResults');
     host.innerHTML = '';
-    var hints = E.proxyHints(currentTable, currentResult.dimensions);
+    var alpha = readProxyAlpha(document.getElementById('proxyAlphaInput'), host);
+    if (alpha === null) return;
+    var hints = E.proxyHints(currentTable, currentResult.dimensions, alpha);
     // Attach to the result so Download report / Copy as JSON / Download CSV
     // include what's on screen (issue #758).
     currentResult.proxy_hints = hints;
     if (!hints.length) {
-      host.innerHTML = '<p class="section-note">No column pairs are significantly associated (p &lt; 0.05).</p>';
+      host.innerHTML = '<p class="section-note">No column pairs are significantly associated (p &lt; ' + alpha + ').</p>';
       return;
     }
     var list = document.createElement('div');

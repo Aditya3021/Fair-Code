@@ -643,3 +643,31 @@ def test_compare_to_csv_includes_labelled_proxy_hints_per_dataset():
     assert ["A", "sex", "race", "0.01", "0.3"] in rows
     assert ["B", "sex", "race", "0.01", "0.3"] in rows
     assert "dataset" in text
+
+
+def test_to_csv_writes_a_reference_section_when_a_baseline_was_used():
+    result = {"flags": [], "dimensions": [{
+        "name": "sex", "kind": "sex", "under_represented": [],
+        "groups": [{"label": "f", "count": 1, "share": 0.5, "ci_low": 0.1, "ci_high": 0.9,
+                    "small_group": False}],
+        "reference": {"deviation": 0.1, "groups": [
+            {"label": "f", "expected": 0.5, "actual": 0.4, "delta": -0.1}]},
+    }]}
+    rows = list(csv.reader(io.StringIO(to_csv(result))))
+    i = rows.index(["dimension", "reference_label", "expected", "actual", "delta",
+                    "reference_deviation"])
+    assert rows[i + 1] == ["sex", "f", "0.5", "0.4", "-0.1", "0.1"]
+
+
+def test_csv_exports_defuse_spreadsheet_formula_injection():
+    """#791: untrusted labels that start like a formula get a ' prefix; real
+    negative numbers are left numeric."""
+    result = {"flags": ["=cmd"], "dimensions": [{
+        "name": "+x", "kind": "categorical", "under_represented": [],
+        "groups": [{"label": '=HYPERLINK("http://x")', "count": 1, "share": -0.5,
+                    "ci_low": None, "ci_high": None, "small_group": False}],
+    }]}
+    rows = list(csv.reader(io.StringIO(to_csv(result))))
+    assert rows[1][0] == "'+x" and rows[1][2] == "'=HYPERLINK(\"http://x\")"
+    assert rows[1][4] == "-0.5"
+    assert ["'=cmd"] in rows

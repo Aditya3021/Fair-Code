@@ -35,6 +35,25 @@ def to_json(result: dict, indent: int = 2, provenance: dict | None = None) -> st
     return json.dumps(dict(result, provenance=provenance), indent=indent)
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+class _SafeCsvWriter:
+    """csv.writer wrapper that defuses spreadsheet formula injection (#791):
+    a text cell a spreadsheet would evaluate (leading = + - @ tab CR) gets a
+    single-quote prefix, per the OWASP CSV-injection guidance. Numbers and
+    booleans are never touched, so real negative values stay numeric."""
+
+    def __init__(self, buf):
+        self._writer = csv.writer(buf)
+
+    def writerow(self, cells):
+        self._writer.writerow([
+            "'" + c if isinstance(c, str) and c.startswith(_FORMULA_PREFIXES) else c
+            for c in cells
+        ])
+
+
 def _write_proxy_rows(writer, hints, side=None) -> None:
     """Proxy-hint section shared by to_csv/compare_to_csv: a header row, then
     one row per hint (a `dataset` column is added only for compare's A/B)."""
@@ -55,7 +74,7 @@ def to_csv(result: dict) -> str:
     already uses for results_fairness.csv/results_performance.csv.
     """
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow([
         "dimension", "kind", "label", "count", "share",
         "ci_low", "ci_high", "under_represented", "small_group",
@@ -71,6 +90,15 @@ def to_csv(result: dict) -> str:
     writer.writerow(["flag"])
     for flag in result["flags"]:
         writer.writerow([flag])
+    ref_dims = [d for d in result["dimensions"] if d.get("reference")]
+    if ref_dims:
+        writer.writerow([])
+        writer.writerow(["dimension", "reference_label", "expected", "actual", "delta",
+                         "reference_deviation"])
+        for d in ref_dims:
+            for g in d["reference"]["groups"]:
+                writer.writerow([d["name"], g["label"], g["expected"], g["actual"],
+                                 g["delta"], d["reference"]["deviation"]])
     if result.get("proxy_hints"):
         writer.writerow([])
         _write_proxy_rows(writer, result["proxy_hints"])
@@ -271,7 +299,7 @@ def compare_to_csv(cmp: dict) -> str:
     mismatch (kind_mismatch: true) has no groups rows, only its summary row.
     """
     buf = io.StringIO()
-    writer = csv.writer(buf)
+    writer = _SafeCsvWriter(buf)
     writer.writerow([
         "dimension", "kind_a", "kind_b", "label",
         "share_a", "share_b", "share_delta", "status",

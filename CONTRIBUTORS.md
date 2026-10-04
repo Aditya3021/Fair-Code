@@ -34,7 +34,7 @@ ordered by merged PR count, most first - ties broken by commit count, then by ea
 date. Within each entry, the PR numbers link the claim to the actual diff, so nothing here is an
 unverifiable "thanks to".
 
-**Snapshot:** 2026-09-14, covering everything merged through **PR #634**.
+**Snapshot:** 2026-10-04, covering everything merged through **PR #793**.
 Anything merged after that date is real and welcome, but is not yet reflected here - the
 [contributors graph](https://github.com/yakew7/Fair-Code/graphs/contributors) is always the live
 source of truth, and the `contrib.rocks` grid above regenerates from it automatically.
@@ -99,7 +99,7 @@ project by volume, concentrated in two areas:
 
 ### Shreyash Swami - [@Shreyash0712](https://github.com/Shreyash0712)
 
-**7 merged PRs · 11 commits · first merged 2026-06-05**
+**7 merged PRs · 10 commits · first merged 2026-06-05**
 
 Co-code-owner of `explainers/`. The most prolific explainer author after the maintainer - ten
 explainers across three PRs, plus workflow maintenance and a citation cleanup pass:
@@ -123,9 +123,11 @@ Added reference hyperlinks to six explainers' previously plain-text citations ([
 
 Ordered by merged PR count, most first (ties broken by commit count, then by earliest first-merged date).
 
+Most recently, documentation sync PRs for [SPEC.md](faircode/SPEC.md) ([#477](https://github.com/yakew7/Fair-Code/pull/477)), the `new_explainer.yml` issue template ([#478](https://github.com/yakew7/Fair-Code/pull/478)) and [README.md](README.md) ([#479](https://github.com/yakew7/Fair-Code/pull/479)).
+
 ### Evan Jain - [@evanjain-dot](https://github.com/evanjain-dot)
 
-**11 merged PRs · 39 commits · first merged 2026-05-18**
+**14 merged PRs · 42 commits · first merged 2026-05-18**
 
 Author of the second PR ever merged into the repo. Three explainers plus a CI check:
 [Sampling Bias](explainers/sampling-bias.md) ([#2](https://github.com/yakew7/Fair-Code/pull/2)),
@@ -183,6 +185,12 @@ Added a `test` extra (`pytest`, `pytest-cov`) to `pyproject.toml` ([#265](https:
 
 Fixed `faircode benchmark` leaking a raw `FileNotFoundError` traceback for a missing manifest path instead of the same clean `error: ...` style every other file-reading path in the CLI already uses ([#631](https://github.com/yakew7/Fair-Code/pull/631), closing issue #616). Then added the 7th audit missing from README.md's "all six projects" swap-list ([#633](https://github.com/yakew7/Fair-Code/pull/633), closing issue #627). Most recently, gave `faircode profile` a guard against reading both the primary input and `--reference`/`--proxy-hints-with` from stdin - a stream can only be read once, and both cases previously produced a confusing error that blamed the wrong read ([#634](https://github.com/yakew7/Fair-Code/pull/634), closing issue #615).
 
+### THADI DANIEL RATAN BABU - [@thadidaniel-ctrl](https://github.com/thadidaniel-ctrl)
+
+**3 merged PRs · 3 commits · first merged 2026-09-27**
+
+Added a "Skip to main content" link and a semantic `<main id="main">` landmark to the homepage, with the navigation kept outside it ([#748](https://github.com/yakew7/Fair-Code/pull/748)); corrected the Benefits Denial `unfair.py` summary text to match the script's own printed output, with a matching `tests/test_proxy.py` touch-up ([#749](https://github.com/yakew7/Fair-Code/pull/749)); and refreshed the generated explainer index data and OG share images ([#750](https://github.com/yakew7/Fair-Code/pull/750)).
+
 ### Anjali Tiwari - [@cannotdoit13](https://github.com/cannotdoit13)
 
 **2 merged PRs · 2 commits · first merged 2026-06-01**
@@ -197,7 +205,7 @@ A build-time check for missing Open Graph images in `scripts/build_explainers.py
 
 ### Lovish Menaria - [@lovishmenaria14-gif](https://github.com/lovishmenaria14-gif)
 
-**2 merged PRs · 2 commits · first merged 2026-08-29**
+**2 merged PRs · 3 commits · first merged 2026-08-29**
 
 Added a `provenance` block to the web profiler's "Copy as JSON" export, mirroring the Python side's
 shape (`faircode_version`, `engine: "js"`, `dataset_hash`, `params`, `overrides`) via
@@ -302,7 +310,7 @@ the same font `generate_og_images.py` already uses for exactly this reason ([#33
 
 ### [@StudentSuite3](https://github.com/StudentSuite3)
 
-**1 merged PR · 1 commit · first merged 2026-08-28**
+**1 merged PR · 4 commits · first merged 2026-08-28**
 
 Added a guard against `faircode profile --cross COLA,COLA` (the same column crossed with itself),
 matching the check the web profiler already had for this exact case: every off-diagonal cell in a
@@ -410,6 +418,30 @@ Synced `CITATION.cff`'s `date-released` field with the `v2.2.0` tag date, which 
 
 Added `assets/profiler-ui.js` to CI's code-relevance filter and the pre-push pytest hook's trigger paths, both of which had listed `profiler-engine.js`/`profiler-compare.js` but omitted this third profiler JS file despite `tests/test_js_parity.py` asserting directly against its source ([#710](https://github.com/yakew7/Fair-Code/pull/710), closing issue #702).
 
+### Tiyatrotist - [@Tiyatrotist](https://github.com/Tiyatrotist)
+
+**1 merged PR · 1 commit · first merged 2026-09-27**
+
+Added the shareable `profiler.html?demo=compare` link, which loads the existing A/B sample drift datasets automatically; the single-profile controller now reserves `demo=compare` and the compare button shares one loader with the URL path ([#747](https://github.com/yakew7/Fair-Code/pull/747), closing issue #742).
+
+### ReadyAgents - [@readyagentsdev](https://github.com/readyagentsdev)
+
+**1 merged PR · 1 commit · first merged 2026-09-30**
+
+Exposed `max_categorical_card` and `max_dimension_groups` on the MCP `profile_dataset` and `compare_datasets` tools, so an agent can reproduce a CLI run that used `--max-categorical-card` / `--max-dimension-groups` ([#766](https://github.com/yakew7/Fair-Code/pull/766), closing issue #759).
+
+### Abitha Pauline K - [@Abitha1861](https://github.com/Abitha1861)
+
+**1 merged PR · 1 commit · first merged 2026-10-02**
+
+Added dark and light Open Graph share images for the benchmark dashboard and wired them into `benchmark.html` and `scripts/generate_og_images.py` ([#792](https://github.com/yakew7/Fair-Code/pull/792), resolving issue #785).
+
+### Yip Jun Wei - [@Yipjunwei](https://github.com/Yipjunwei)
+
+**1 merged PR · 1 commit · first merged 2026-10-03**
+
+Added the benchmark dashboard's Reset filters button, which clears the active tab's dropdown filters, sort and significant-only toggle and updates the URL to the unfiltered view ([#793](https://github.com/yakew7/Fair-Code/pull/793), closing issue #778).
+
 ---
 
 ## Contributions by area
@@ -418,13 +450,13 @@ A cross-cut of the same work, for anyone looking for who to ask about what.
 
 | Area | Contributors |
 |------|--------------|
-| **Audits** (`*/unfair.py`, `*/fair.py`, `audit.yaml`) | [@yakew7](https://github.com/yakew7), [@YashKewlani1](https://github.com/YashKewlani1), [@Rajveerx11](https://github.com/Rajveerx11), [@cannotdoit13](https://github.com/cannotdoit13) |
+| **Audits** (`*/unfair.py`, `*/fair.py`, `audit.yaml`) | [@yakew7](https://github.com/yakew7), [@YashKewlani1](https://github.com/YashKewlani1), [@Rajveerx11](https://github.com/Rajveerx11), [@cannotdoit13](https://github.com/cannotdoit13), [@thadidaniel-ctrl](https://github.com/thadidaniel-ctrl) |
 | **Explainers** (`explainers/`) | [@yakew7](https://github.com/yakew7), [@Shreyash0712](https://github.com/Shreyash0712), [@evanjain-dot](https://github.com/evanjain-dot), [@AnayDhawan](https://github.com/AnayDhawan), [@propcgamer20-png](https://github.com/propcgamer20-png), [@Rajveerx11](https://github.com/Rajveerx11), `TanishGoyal-Dev` (account deleted), [@shwetagupta1234](https://github.com/shwetagupta1234), [@Aarav1611](https://github.com/Aarav1611), [@Aaqibhafeezkhan](https://github.com/Aaqibhafeezkhan) |
-| **Profiler - CLI & loaders** (`faircode/`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@tomatotomata](https://github.com/tomatotomata), [@ImMortaL0P](https://github.com/ImMortaL0P), [@propcgamer20-png](https://github.com/propcgamer20-png), [@evanjain-dot](https://github.com/evanjain-dot), [@AnayDhawan](https://github.com/AnayDhawan), [@VedantMadane](https://github.com/VedantMadane), [@mahirhir](https://github.com/mahirhir), [@StudentSuite3](https://github.com/StudentSuite3), [@oxura](https://github.com/oxura), [@nitishchauhan002](https://github.com/nitishchauhan002), [@be-student](https://github.com/be-student), [@slsgzs-cloud](https://github.com/slsgzs-cloud), [@wangzhengzhuo05](https://github.com/wangzhengzhuo05), [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [@KingEmma7](https://github.com/KingEmma7) |
-| **Profiler - web** (`profiler.html`, `assets/profiler-*.js`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@ImMortaL0P](https://github.com/ImMortaL0P), [@AnayDhawan](https://github.com/AnayDhawan), [@Shreyash0712](https://github.com/Shreyash0712), [@lovishmenaria14-gif](https://github.com/lovishmenaria14-gif), [@be-student](https://github.com/be-student), [@propcgamer20-png](https://github.com/propcgamer20-png), [@wangzhengzhuo05](https://github.com/wangzhengzhuo05), [@kevin-lozada-santos](https://github.com/kevin-lozada-santos), [@ege-arhan](https://github.com/ege-arhan) |
-| **Benchmark harness & paper freeze** | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@shauryagangrade](https://github.com/shauryagangrade), [@be-student](https://github.com/be-student), [@propcgamer20-png](https://github.com/propcgamer20-png) |
+| **Profiler - CLI & loaders** (`faircode/`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@tomatotomata](https://github.com/tomatotomata), [@ImMortaL0P](https://github.com/ImMortaL0P), [@propcgamer20-png](https://github.com/propcgamer20-png), [@evanjain-dot](https://github.com/evanjain-dot), [@AnayDhawan](https://github.com/AnayDhawan), [@VedantMadane](https://github.com/VedantMadane), [@mahirhir](https://github.com/mahirhir), [@StudentSuite3](https://github.com/StudentSuite3), [@oxura](https://github.com/oxura), [@nitishchauhan002](https://github.com/nitishchauhan002), [@be-student](https://github.com/be-student), [@slsgzs-cloud](https://github.com/slsgzs-cloud), [@wangzhengzhuo05](https://github.com/wangzhengzhuo05), [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [@KingEmma7](https://github.com/KingEmma7), [@readyagentsdev](https://github.com/readyagentsdev) |
+| **Profiler - web** (`profiler.html`, `assets/profiler-*.js`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@ImMortaL0P](https://github.com/ImMortaL0P), [@AnayDhawan](https://github.com/AnayDhawan), [@Shreyash0712](https://github.com/Shreyash0712), [@lovishmenaria14-gif](https://github.com/lovishmenaria14-gif), [@be-student](https://github.com/be-student), [@propcgamer20-png](https://github.com/propcgamer20-png), [@wangzhengzhuo05](https://github.com/wangzhengzhuo05), [@kevin-lozada-santos](https://github.com/kevin-lozada-santos), [@ege-arhan](https://github.com/ege-arhan), [@Tiyatrotist](https://github.com/Tiyatrotist) |
+| **Benchmark harness & paper freeze** | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@shauryagangrade](https://github.com/shauryagangrade), [@be-student](https://github.com/be-student), [@propcgamer20-png](https://github.com/propcgamer20-png), [@Yipjunwei](https://github.com/Yipjunwei), [@Abitha1861](https://github.com/Abitha1861) |
 | **CI & workflows** (`.github/`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@cannotdoit13](https://github.com/cannotdoit13), [@Shreyash0712](https://github.com/Shreyash0712), [@evanjain-dot](https://github.com/evanjain-dot), [@propcgamer20-png](https://github.com/propcgamer20-png), [@Swastik-Yadav](https://github.com/Swastik-Yadav), [@AnayDhawan](https://github.com/AnayDhawan), [@raonishanth2000-hub](https://github.com/raonishanth2000-hub), [@saikeerthanakavuri](https://github.com/saikeerthanakavuri) |
-| **Website & explainer build** | [@yakew7](https://github.com/yakew7), [@anujkamdar](https://github.com/anujkamdar), [@Swastik-Yadav](https://github.com/Swastik-Yadav), [@Ayaan-20-11](https://github.com/Ayaan-20-11), [@sushicat75](https://github.com/sushicat75), [@propcgamer20-png](https://github.com/propcgamer20-png), [@Aaqibhafeezkhan](https://github.com/Aaqibhafeezkhan), [@slsgzs-cloud](https://github.com/slsgzs-cloud), [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [@AnayDhawan](https://github.com/AnayDhawan) |
+| **Website & explainer build** | [@yakew7](https://github.com/yakew7), [@anujkamdar](https://github.com/anujkamdar), [@Swastik-Yadav](https://github.com/Swastik-Yadav), [@Ayaan-20-11](https://github.com/Ayaan-20-11), [@sushicat75](https://github.com/sushicat75), [@propcgamer20-png](https://github.com/propcgamer20-png), [@Aaqibhafeezkhan](https://github.com/Aaqibhafeezkhan), [@slsgzs-cloud](https://github.com/slsgzs-cloud), [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [@AnayDhawan](https://github.com/AnayDhawan), [@thadidaniel-ctrl](https://github.com/thadidaniel-ctrl), [@Abitha1861](https://github.com/Abitha1861) |
 | **Tests** (`tests/`) | [@yakew7](https://github.com/yakew7), [@ahmdkaml](https://github.com/ahmdkaml), [@tomatotomata](https://github.com/tomatotomata), [@ImMortaL0P](https://github.com/ImMortaL0P), [@evanjain-dot](https://github.com/evanjain-dot), [@propcgamer20-png](https://github.com/propcgamer20-png), [@mahirhir](https://github.com/mahirhir), [@StudentSuite3](https://github.com/StudentSuite3), [@oxura](https://github.com/oxura), [@shauryagangrade](https://github.com/shauryagangrade), [@nitishchauhan002](https://github.com/nitishchauhan002), [@be-student](https://github.com/be-student), [@wangzhengzhuo05](https://github.com/wangzhengzhuo05), [@Rayan-and-beyond](https://github.com/Rayan-and-beyond), [@KingEmma7](https://github.com/KingEmma7) |
 | **Contributor tooling & docs** | [@yakew7](https://github.com/yakew7), [@propcgamer20-png](https://github.com/propcgamer20-png), [@ahmdkaml](https://github.com/ahmdkaml), [@Swastik-Yadav](https://github.com/Swastik-Yadav), [@Circout-sudo](https://github.com/Circout-sudo), [@nivedmahendran](https://github.com/nivedmahendran), [@lovishmenaria14-gif](https://github.com/lovishmenaria14-gif), [@Zinniacodes01](https://github.com/Zinniacodes01), [@carryok](https://github.com/carryok), [@SatvikMishra08](https://github.com/SatvikMishra08) |
 
@@ -437,7 +469,7 @@ and excluded from the avatar grid above.
 
 | Bot | Merged PRs | What it does |
 |-----|:---------:|--------------|
-| [dependabot](https://github.com/apps/dependabot) | 24 | Dependency and GitHub Actions version bumps, configured in [`.github/dependabot.yml`](.github/dependabot.yml), including `requirements-lock.txt` - no longer under any special freeze handling, see [CLAUDE.md](CLAUDE.md). |
+| [dependabot](https://github.com/apps/dependabot) | 43 | Dependency and GitHub Actions version bumps, configured in [`.github/dependabot.yml`](.github/dependabot.yml), including `requirements-lock.txt` - no longer under any special freeze handling, see [CLAUDE.md](CLAUDE.md). |
 | [vercel](https://github.com/apps/vercel) | 2 | Web Analytics and Speed Insights wiring for the deployed site. |
 
 ---

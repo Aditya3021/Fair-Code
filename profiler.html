@@ -293,6 +293,16 @@
         <label class="proxy-alpha">Significance level (<code>--proxy-alpha</code>)
           <input type="number" class="threshold-input" id="proxyAlphaInput" step="any" min="0" max="1" placeholder="0.05" inputmode="decimal">
         </label>
+        <details class="proxy-heldout">
+          <summary>Test a column you already dropped (<code>--proxy-hints-with</code>)</summary>
+          <p class="section-note">
+            Upload the original file that still has the dropped protected attribute (CSV, TSV or JSON,
+            same rows in the same order as this dataset), and name the column. It is tested against
+            every detected dimension, so "we removed the column" cannot hide a proxy.
+          </p>
+          <label>File <input type="file" id="heldOutFileInput" accept=".csv,.tsv,.json,text/csv,application/json"></label>
+          <label>Column <input type="text" class="threshold-input" id="heldOutColumnInput" placeholder="e.g. race" autocomplete="off"></label>
+        </details>
         <button type="button" class="proxy-hints-btn" id="proxyHintsBtn">Check for proxy columns</button>
         <div id="proxyHintsResults"></div>
       </div>

@@ -829,10 +829,35 @@
     return regularizedGammaQ(dof / 2, chi2 / 2);
   }
 
-  function proxyHints(table, dimensions, alpha) {
+  // Held-out columns (#781): {name: valuesArray} for a protected attribute
+  // already dropped from `table` - the browser counterpart of the CLI's
+  // --proxy-hints-with PATH=COLUMN, treated as plain categorical values.
+  // parseHeldOut() applies the same checks as proxy.py's parse_held_out_specs.
+  function parseHeldOut(heldTable, column, table, already) {
+    if (!column) throw new Error('held-out column name is required');
+    if (heldTable.columns.indexOf(column) === -1) {
+      throw new Error("held-out column '" + column + "' not found in the held-out file");
+    }
+    if (table.columns.indexOf(column) !== -1) {
+      throw new Error("held-out column '" + column + "' already exists in the profiled " +
+        'dataset - held-out columns must not collide with a real one');
+    }
+    if (already && Object.prototype.hasOwnProperty.call(already, column)) {
+      throw new Error("held-out column '" + column + "' was already supplied");
+    }
+    if (heldTable.rows.length !== table.rows.length) {
+      throw new Error('held-out file has ' + heldTable.rows.length + ' row(s), but the profiled ' +
+        'dataset has ' + table.rows.length + ' - rows must align 1:1');
+    }
+    return heldTable.rows.map(function (r) { return r[column]; });
+  }
+
+  function proxyHints(table, dimensions, alpha, heldOut) {
     if (alpha === undefined) alpha = PROXY_ALPHA;
+    if (!(alpha > 0 && alpha <= 1)) throw new Error('alpha must be in (0, 1], got ' + alpha);
     var labelized = {}, i, j, k;
     dimensions.forEach(function (d) { labelized[d.name] = labelize(table, d.name, d.kind); });
+    Object.keys(heldOut || {}).forEach(function (name) { labelized[name] = heldOut[name]; });
     var names = Object.keys(labelized);
     var nTotal = table.rows.length;
     var hints = [];
@@ -1302,7 +1327,7 @@
                               // Opt-in, informational only (issue #738) - see
                               // proxyHints()'s own comment for why this is
                               // kept out of profile()/compare().
-                              proxyHints: proxyHints,
+                              proxyHints: proxyHints, parseHeldOut: parseHeldOut,
                               csvField: csvField, csvRow: csvRow,
                               // publicParams: resolved knobs for an export's
                               // provenance.params, matching the Python path (#490).

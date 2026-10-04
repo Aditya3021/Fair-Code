@@ -785,7 +785,7 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
 
     ui = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
     assert "proxyHintsBtn.addEventListener('click', renderProxyHints)" in ui
-    assert "E.proxyHints(currentTable, currentResult.dimensions, alpha)" in ui
+    assert "E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut)" in ui
 
 
 def _run_ui_exports(csv_path, with_hints):
@@ -864,7 +864,7 @@ def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path)
 
     path_a = _sex_race_csv(tmp_path)
     rows = ["sex,race"] + [
-        f"{'male' if i % 3 else 'female'},{'White' if i % 4 else 'Asian'}" for i in range(80)
+        f"{'male' if i % 3 else 'female'},{'White' if i % 3 else 'Asian'}" for i in range(80)
     ]
     path_b = tmp_path / "b.csv"
     path_b.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -882,7 +882,7 @@ def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path)
         "var ta=load(process.argv[2]),tb=load(process.argv[3]);"
         "var pa=E.profile(ta,{},{}),pb=E.profile(tb,{},{});var c=E.compare(pa,pb,'a.csv','b.csv');"
         "var plain=buildCompareCsvReport(c);"
-        "c.proxy_hints_a=E.proxyHints(ta,pa.dimensions,2);c.proxy_hints_b=E.proxyHints(tb,pb.dimensions,2);"
+        "c.proxy_hints_a=E.proxyHints(ta,pa.dimensions,1);c.proxy_hints_b=E.proxyHints(tb,pb.dimensions,1);"
         "process.stdout.write(JSON.stringify({plain:plain,csv:buildCompareCsvReport(c),html:buildCompareHtmlReport(c)}));"
     )
     completed = subprocess.run(
@@ -937,3 +937,50 @@ def test_web_and_python_csv_exports_defuse_formula_labels_identically(tmp_path):
     py = to_csv(dict(profile(pd.read_csv(path))))
     assert "'=1+1" in web and "'=1+1" in py
     assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")
+
+
+def test_python_js_proxy_hints_held_out_column_parity(tmp_path):
+    """#781: the web proxyHints(..., heldOut) flags a dropped column (race)
+    against a surviving proxy (zip_code) like proxy_hints(held_out=...), and
+    parseHeldOut enforces the same row-count/collision rules."""
+    pytest.importorskip("scipy")
+    from faircode.detect import detect_columns
+    from faircode.proxy import proxy_hints
+
+    zip_code = ["111"] * 40 + ["222"] * 40
+    race = ["A"] * 40 + ["B"] * 40
+    kept = tmp_path / "kept.csv"
+    kept.write_text("zip_code,sex\n" + "\n".join(
+        f"{z},{'m' if i % 2 else 'f'}" for i, z in enumerate(zip_code)) + "\n", encoding="utf-8")
+    full = tmp_path / "full.csv"
+    full.write_text("race\n" + "\n".join(race) + "\n", encoding="utf-8")
+    short = tmp_path / "short.csv"
+    short.write_text("race\nA\nB\n", encoding="utf-8")
+
+    df = pd.read_csv(kept)
+    dims = [{"name": d["name"], "kind": d["kind"]} for d in detect_columns(df)]
+    py = proxy_hints(df, dims, held_out={"race": pd.read_csv(full)["race"]})
+
+    script = (
+        "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        "function load(p){return E.parseCSV(fs.readFileSync(p,'utf-8'));}"
+        "var t=load(process.argv[2]),h=load(process.argv[3]),s=load(process.argv[4]);"
+        "var r=E.profile(t,{},{});var out={};"
+        "out.hints=E.proxyHints(t,r.dimensions,0.05,{race:E.parseHeldOut(h,'race',t)});"
+        "try{E.parseHeldOut(s,'race',t)}catch(e){out.short=e.message}"
+        "try{E.parseHeldOut(h,'zip_code',t)}catch(e){out.missing=e.message}"
+        "try{E.proxyHints(t,r.dimensions,0)}catch(e){out.alpha=e.message}"
+        "process.stdout.write(JSON.stringify(out));"
+    )
+    done = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"),
+         str(kept), str(full), str(short)],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    js = json.loads(done.stdout)
+
+    py_pair = next(h for h in py if {h["a"], h["b"]} == {"zip_code", "race"})
+    js_pair = next(h for h in js["hints"] if {h["a"], h["b"]} == {"zip_code", "race"})
+    assert py_pair["chi2"] == js_pair["chi2"] and py_pair["cramers_v"] == js_pair["cramers_v"]
+    assert "rows must align 1:1" in js["short"]
+    assert "not found" in js["missing"]
+    assert "alpha must be in (0, 1]" in js["alpha"]

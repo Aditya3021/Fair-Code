@@ -795,8 +795,9 @@ def _run_ui_exports(csv_path, with_hints):
     helpers = src[src.index("var GRADE_COLOR"):src.index("function render(")]
     builders = src[src.index("function buildHtmlReport(r)"):src.index("function downloadCsvReport")]
     script = (
-        "var DISPLAY_GROUPS=12;" + helpers + builders +
+        "var DISPLAY_GROUPS=12;" + helpers +
         "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        + builders +
         "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{},{});"
         + ("r.proxy_hints=E.proxyHints(t,r.dimensions,0.9);" if with_hints else "") +
         "process.stdout.write(JSON.stringify({html:buildHtmlReport(r),csv:buildCsvReport(r)}));"
@@ -872,10 +873,11 @@ def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path)
     helpers = (src[src.index("function pct("):src.index("function wireSlot")]
                + src[src.index("function kindMismatchReason"):src.index("function driftCard")])
     builders = src[src.index("function proxyHintItems"):src.index("function compareReportBaseName")]
-    csvs = src[src.index("function csvField"):src.index("function downloadCompareCsvReport")]
+    csvs = src[src.index("var csvRow = E.csvRow"):src.index("function downloadCompareCsvReport")]
     script = (
-        "var DISPLAY_GROUPS=12;" + helpers + builders + csvs +
+        "var DISPLAY_GROUPS=12;" + helpers +
         "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        + builders + csvs +
         "function load(p){return E.parseCSV(fs.readFileSync(p,'utf-8'));}"
         "var ta=load(process.argv[2]),tb=load(process.argv[3]);"
         "var pa=E.profile(ta,{},{}),pb=E.profile(tb,{},{});var c=E.compare(pa,pb,'a.csv','b.csv');"
@@ -921,3 +923,17 @@ def test_compare_view_download_csv_and_proxy_controls_are_wired():
     assert "downloadCsvBtn.addEventListener('click', downloadCompareCsvReport)" in js
     assert "proxyBtn.addEventListener('click', renderCompareProxyHints)" in js
     assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha)" in js
+
+
+def test_web_and_python_csv_exports_defuse_formula_labels_identically(tmp_path):
+    """#791: a label like =1+1 is written with a leading ' by both engines, and
+    both still agree on the whole file (#790: one shared helper)."""
+    from faircode.report import to_csv
+
+    rows = ["sex"] + ["=1+1"] * 30 + ["male"] * 30
+    path = tmp_path / "inj.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    web = _run_ui_exports(path, False)["csv"]
+    py = to_csv(dict(profile(pd.read_csv(path))))
+    assert "'=1+1" in web and "'=1+1" in py
+    assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")

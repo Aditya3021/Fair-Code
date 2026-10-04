@@ -898,6 +898,19 @@
     return hints;
   }
 
+  // ── CSV cell/row writer shared by every browser export (#790) ──────────
+  // Matches faircode/report.py's csv output: booleans as True/False, null as
+  // empty, quoting on comma/quote/newline, CRLF row ends, and a single-quote
+  // prefix on text a spreadsheet would evaluate as a formula (#791).
+  function csvField(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'boolean') return v ? 'True' : 'False';
+    var t = String(v);
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  }
+  function csvRow(cells) { return cells.map(csvField).join(',') + '\r\n'; }
+
   // ── Flags + grade (SPEC sections 5 & 6) ────────────────────────────────
   function grade(score) {
     if (score >= 85) return 'A';
@@ -1290,6 +1303,7 @@
                               // proxyHints()'s own comment for why this is
                               // kept out of profile()/compare().
                               proxyHints: proxyHints,
+                              csvField: csvField, csvRow: csvRow,
                               // publicParams: resolved knobs for an export's
                               // provenance.params, matching the Python path (#490).
                               publicParams: publicParams,

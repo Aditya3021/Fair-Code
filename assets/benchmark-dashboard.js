@@ -375,12 +375,7 @@
   }
 
   // ── Export of the current (filtered + sorted) view (issue #761) ────────
-  function csvField(v) {
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'boolean') return v ? 'True' : 'False';
-    var t = String(v);
-    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
-  }
+  var csvField = E.csvField;
 
   function rowsToCsv(kind, rows) {
     var cols = kind === 'fairness' ? FAIRNESS_COLUMNS : PERFORMANCE_COLUMNS;

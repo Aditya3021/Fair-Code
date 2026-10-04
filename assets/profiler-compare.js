@@ -653,13 +653,7 @@
   }
 
   // Mirrors faircode/report.py::compare_to_csv (issue #756).
-  function csvField(v) {
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'boolean') return v ? 'True' : 'False';
-    var t = String(v);
-    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
-  }
-  function csvRow(cells) { return cells.map(csvField).join(',') + '\r\n'; }
+  var csvRow = E.csvRow;
 
   function buildCompareCsvReport(cmp) {
     var out = csvRow(['dimension', 'kind_a', 'kind_b', 'label',

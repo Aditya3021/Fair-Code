@@ -809,13 +809,7 @@
   }
 
   // Mirrors faircode/report.py::to_csv (issues #755, #758).
-  function csvField(v) {
-    if (v === null || v === undefined) return '';
-    if (typeof v === 'boolean') return v ? 'True' : 'False';
-    var t = String(v);
-    return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
-  }
-  function csvRow(cells) { return cells.map(csvField).join(',') + '\r\n'; }
+  var csvRow = E.csvRow;
 
   function buildCsvReport(r) {
     var out = csvRow(['dimension', 'kind', 'label', 'count', 'share',

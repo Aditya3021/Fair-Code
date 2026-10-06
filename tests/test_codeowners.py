@@ -153,3 +153,21 @@ def test_every_codeowners_owner_is_a_valid_github_handle():
         if not handle_re.match(owner)
     ]
     assert not bad, "\n".join(bad)
+
+
+def test_profiler_scripts_are_co_owned():
+    entries = _parse_codeowners_paths()
+    owner_map = {pattern: owners for _line_no, pattern, owners in entries}
+    for script in [
+        "/assets/profiler-engine.js",
+        "/assets/profiler-compare.js",
+        "/assets/profiler-heldout.js",
+        "/assets/profiler-ui.js",
+        "/assets/profiler.css",
+        "/profiler.html",
+    ]:
+        assert script in owner_map, f"{script} missing from CODEOWNERS"
+        assert "@yakew7" in owner_map[script] and "@ahmdkaml" in owner_map[script], (
+            f"{script} is not co-owned by @yakew7 and @ahmdkaml"
+        )
+

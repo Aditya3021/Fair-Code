@@ -157,3 +157,9 @@
 .bar-track.signed { background-image: linear-gradient(var(--border2), var(--border2));
   background-size: 1px 100%; background-position: 50% 0; background-repeat: no-repeat; }
 .bar-fill.neg { opacity: 0.75; }
+
+.bench-chart-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.bench-figure-block { margin: 0 0 28px; font-size: 13px; }
+.bench-figure-block summary { cursor: pointer; font-family: var(--mono); color: var(--muted); }
+.bench-figure-block img { display: block; max-width: 100%; height: auto; margin-top: 12px;
+  border: 1px solid var(--border); border-radius: 6px; background: #fff; }

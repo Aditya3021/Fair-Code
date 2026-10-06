@@ -186,6 +186,7 @@
       <div class="bench-tabs" role="tablist">
         <button type="button" class="bench-tab" data-tab="fairness" role="tab" aria-selected="true">Fairness metrics</button>
         <button type="button" class="bench-tab" data-tab="performance" role="tab" aria-selected="false">Model performance</button>
+        <button type="button" class="bench-tab" data-tab="summary" role="tab" aria-selected="false">Roll-up summary</button>
       </div>
 
       <div class="bench-filters" id="benchFilters"></div>
@@ -205,7 +206,16 @@
         <h3 class="section-title">Chart</h3>
         <p class="section-note" id="benchChartNote"></p>
         <div id="benchChart" hidden></div>
+        <div class="bench-chart-buttons" id="benchChartButtons" hidden>
+          <button type="button" class="action-btn" id="benchChartSvgBtn">⬇ Download chart (SVG)</button>
+          <button type="button" class="action-btn" id="benchChartPngBtn">⬇ Download chart (PNG)</button>
+        </div>
       </div>
+
+      <details class="bench-figure-block" id="benchFigureBlock" hidden>
+        <summary>Committed figure for this audit (<code>results/figures/</code>)</summary>
+        <img id="benchFigureImg" alt="" loading="lazy">
+      </details>
 
       <div class="bench-table-wrap" id="benchTable"></div>
     </section>

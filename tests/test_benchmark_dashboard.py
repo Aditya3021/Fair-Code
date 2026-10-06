@@ -45,6 +45,7 @@ function makeEl(id) {
     },
     setAttribute: function (k, v) { el['attr_' + k] = v; },
     getAttribute: function (k) { return el['attr_' + k]; },
+    removeAttribute: function (k) { delete el[k]; },
     appendChild: function (child) { (el._children = el._children || []).push(child); return child; },
     querySelectorAll: function (sel) {
       if (sel === '.bench-sort-btn') return el._sortButtons || [];
@@ -74,7 +75,8 @@ function makeEl(id) {
 var ids = ['loadBundledBtn', 'benchDropzone', 'benchFileInput', 'benchError', 'benchStatus',
   'benchResults', 'benchFilters', 'significantOnlyInput', 'benchSummary', 'benchTable',
   'benchChart', 'benchChartNote', 'benchChartBlock', 'benchExportBtn', 'benchResetBtn',
-  'benchClearBtn', 'benchLegend'];
+  'benchClearBtn', 'benchLegend', 'benchChartButtons', 'benchChartSvgBtn',
+  'benchChartPngBtn', 'benchFigureBlock', 'benchFigureImg'];
 var elements = {};
 ids.forEach(function (id) { elements[id] = makeEl(id); });
 
@@ -116,11 +118,13 @@ function makeTabButton(tab, selected) {
   b.setAttribute('aria-selected', String(selected));
   return b;
 }
-global.__tabButtons = [makeTabButton('fairness', true), makeTabButton('performance', false)];
+global.__tabButtons = [makeTabButton('fairness', true), makeTabButton('performance', false),
+  makeTabButton('summary', false)];
 
 var fetchMap = {
   'results/results_fairness.csv': fs.readFileSync(path.join(REPO, 'results', 'results_fairness.csv'), 'utf-8'),
   'results/results_performance.csv': fs.readFileSync(path.join(REPO, 'results', 'results_performance.csv'), 'utf-8'),
+  'results/summary.csv': fs.readFileSync(path.join(REPO, 'results', 'summary.csv'), 'utf-8'),
 };
 global.fetch = function (url) {
   return Promise.resolve({ ok: true, text: function () { return Promise.resolve(fetchMap[url]); } });
@@ -195,6 +199,11 @@ var results = {};
     sel.value = kv[1];
     (sel._listeners.change || []).forEach(function (f) { f(); });
   });
+  results.svg_button_visible = elements.benchChartButtons.hidden === false;
+  lastBlob = null;
+  elements.benchChartSvgBtn.click();
+  results.svg = lastBlob;
+  results.figure_hidden_without_audit = elements.benchFigureBlock.hidden;
   results.signed_chart = elements.benchChart.innerHTML.indexOf('bar-track signed') !== -1;
   results.neg_bars = (elements.benchChart.innerHTML.match(/bar-fill [a-z]+ neg/g) || []).length;
 
@@ -216,6 +225,22 @@ var results = {};
   results.perf_chart_bars = (elements.benchChart.innerHTML.match(/class="bar-row"/g) || []).length;
   results.perf_chart_hidden = elements.benchChart.hidden;
   results.perf_chart_unsigned = elements.benchChart.innerHTML.indexOf('bar-track signed') === -1;
+
+  // Summary tab (#794) and committed figure (#795).
+  var sumTab = global.__tabButtons[2];
+  sumTab.click();
+  results.summary_summary = elements.benchSummary.textContent;
+  results.summary_header = (elements.benchTable.innerHTML.match(/<th[^>]*>/g) || []).length;
+  results.summary_sig_cell = /\d+ \/ \d+<\/td>/.test(elements.benchTable.innerHTML);
+  var auditSel = createdSelects['audit'];
+  auditSel.value = 'compas';
+  (auditSel._listeners.change || []).forEach(function (f) { f(); });
+  results.figure_visible = elements.benchFigureBlock.hidden === false;
+  results.figure_src = elements.benchFigureImg.src;
+  var perfTab2 = global.__tabButtons[1];
+  perfTab2.click();
+  results.figure_hidden_on_performance = elements.benchFigureBlock.hidden;
+  perfTab2.click();
 
   elements.benchClearBtn.click();
   results.after_clear_summary = elements.benchSummary.textContent;
@@ -290,6 +315,24 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert r["after_clear_summary"] == ""
     assert "Cleared performance" in r["after_clear_status"]
 
+    # #796: the chart downloads as a real SVG built from the same data.
+    assert r["svg_button_visible"] is True
+    assert r["svg"].startswith("<svg") and "<title" in r["svg"]
+    assert r["svg"].count("<rect x=") >= 1 and "demographic_parity_diff" in r["svg"]
+    assert 'stroke="#bdb59c"' in r["svg"]  # signed metric -> centre line
+    assert r["figure_hidden_without_audit"] is True
+
+    # #794: the roll-up summary tab lists summary.csv's rows with "k / n" model counts.
+    summary = pd.read_csv(REPO_ROOT / "results" / "summary.csv")
+    assert r["summary_summary"].startswith(f"{len(summary):,} of {len(summary):,} rows shown")
+    assert r["summary_sig_cell"] is True
+
+    # #795: filtering to one audit on bundled data shows that audit's committed figure.
+    assert r["figure_visible"] is True
+    assert r["figure_src"] == "results/figures/compas_strategies.png"
+    assert (REPO_ROOT / "results" / "figures" / "compas_strategies.png").exists()
+    assert r["figure_hidden_on_performance"] is True
+
     # #761: the export is the filtered + sorted view, header included.
     assert r["export_btn_hidden"] is False
     lines = r["export_csv"].strip().split("\r\n")
@@ -331,6 +374,11 @@ def test_benchmark_dashboard_ui_wiring_present_in_html_and_css():
     assert ".bench-table" in css
 
     assert html.count('aria-live="polite"') >= 2  # #763
+    for new_id in ("benchChartSvgBtn", "benchChartPngBtn", "benchFigureBlock", "benchFigureImg"):
+        assert f'id="{new_id}"' in html, new_id  # #795, #796
+    assert 'data-tab="summary"' in html  # #794
+    js = (REPO_ROOT / "assets" / "benchmark-dashboard.js").read_text(encoding="utf-8")
+    assert "canvas.toBlob" in js and "image/svg+xml" in js  # PNG path (needs a real canvas)
     assert 'id="benchExportBtn"' in html
 
     roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
@@ -354,9 +402,9 @@ def test_benchmark_dashboard_url_state_round_trips():
     assert "tab=performance" in r["last_url"]
 
 
-def test_benchmark_dashboard_detect_kind_rejects_summary_csv():
-    """#775: results/summary.csv (protected_attribute + mean_value, no value
-    column) must not be mis-detected as a fairness file."""
+def test_benchmark_dashboard_detect_kind_tells_the_three_result_files_apart():
+    """#775/#794: results/summary.csv (protected_attribute + mean_value, no value
+    column) is its own kind - never mis-detected as a fairness file."""
     src = (REPO_ROOT / "assets" / "benchmark-dashboard.js").read_text(encoding="utf-8")
     start = src.index("function detectKind")
     fn = src[start:src.index("function ingest")]
@@ -368,4 +416,4 @@ def test_benchmark_dashboard_detect_kind_rejects_summary_csv():
         )) + "]));"
     out = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True,
                                     encoding="utf-8", check=True).stdout)
-    assert out == ["fairness", "performance", None]
+    assert out == ["fairness", "performance", "summary"]

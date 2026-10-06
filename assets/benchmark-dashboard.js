@@ -17,25 +17,39 @@
     'value', 'ci_low', 'ci_high', 'p_value', 'significant',
     'n_disadvantaged', 'n_advantaged', 'small_sample_warning', 'note'];
   var PERFORMANCE_COLUMNS = ['audit', 'strategy', 'model', 'metric', 'value', 'ci_low', 'ci_high', 'n'];
+  // results/summary.csv: the harness's cross-model roll-up (issue #794).
+  var SUMMARY_COLUMNS = ['audit', 'strategy', 'protected_attribute', 'metric', 'mean_value',
+    'n_models_significant', 'n_models'];
+  function columnsFor(kind) {
+    return kind === 'fairness' ? FAIRNESS_COLUMNS : kind === 'summary' ? SUMMARY_COLUMNS : PERFORMANCE_COLUMNS;
+  }
 
   var FILTER_FIELDS = {
     fairness: ['audit', 'strategy', 'model', 'protected_attribute', 'metric'],
-    performance: ['audit', 'strategy', 'model', 'metric']
+    performance: ['audit', 'strategy', 'model', 'metric'],
+    summary: ['audit', 'strategy', 'protected_attribute', 'metric']
   };
 
   var state = {
     fairness: null,   // { rows: [...] } once loaded
     performance: null,
+    summary: null,
     tab: 'fairness',
-    filters: { fairness: {}, performance: {} },
+    filters: { fairness: {}, performance: {}, summary: {} },
     significantOnly: false,
-    sort: { fairness: null, performance: null } // { field, dir }
+    sort: { fairness: null, performance: null, summary: null }, // { field, dir }
+    bundled: { fairness: false, performance: false, summary: false } // loaded from results/ (figures exist)
   };
 
   var pending = { filters: {}, sort: {} }; // from the URL, applied when that tab's data loads
   var exportBtn = document.getElementById('benchExportBtn');
   var clearBtn = document.getElementById('benchClearBtn');
   var legendEl = document.getElementById('benchLegend');
+  var chartButtons = document.getElementById('benchChartButtons');
+  var chartSvgBtn = document.getElementById('benchChartSvgBtn');
+  var chartPngBtn = document.getElementById('benchChartPngBtn');
+  var figureBlock = document.getElementById('benchFigureBlock');
+  var figureImg = document.getElementById('benchFigureImg');
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.bench-tab'));
   var loadBundledBtn = document.getElementById('loadBundledBtn');
   var dropzone = document.getElementById('benchDropzone');
@@ -69,11 +83,12 @@
   // ── Loading ───────────────────────────────────────────────────────────
   // results_fairness.csv has protected_attribute + value + p_value;
   // results_performance.csv has audit + metric + value but no protected_attribute.
-  // summary.csv (protected_attribute + mean_value, no value column) is a
-  // cross-model roll-up, not a per-run file, so it is rejected rather than
-  // mis-loaded as fairness rows with blank values (#775).
+  // summary.csv (protected_attribute + mean_value + n_models) is the cross-model
+  // roll-up and gets its own tab (#794) - never mis-loaded as fairness rows
+  // with blank values (#775).
   function detectKind(columns) {
     var has = function (c) { return columns.indexOf(c) !== -1; };
+    if (has('protected_attribute') && has('mean_value') && has('n_models')) return 'summary';
     if (has('protected_attribute') && has('value') && has('p_value')) return 'fairness';
     if (has('audit') && has('metric') && has('value') && !has('protected_attribute')) return 'performance';
     return null;
@@ -82,9 +97,19 @@
   function ingest(kind, table) {
     var rows = table.rows.map(function (r) {
       var row = {};
-      (kind === 'fairness' ? FAIRNESS_COLUMNS : PERFORMANCE_COLUMNS).forEach(function (col) {
+      columnsFor(kind).forEach(function (col) {
         row[col] = r[col] === undefined ? null : r[col];
       });
+      if (kind === 'summary') {
+        row.mean_value = toNum(row.mean_value);
+        row.n_models_significant = toNum(row.n_models_significant);
+        row.n_models = toNum(row.n_models);
+        // `value` aliases mean_value so the chart and shared helpers need no special case;
+        // "significant" for styling = every model agreed the gap is significant.
+        row.value = row.mean_value;
+        row.significant = row.n_models > 0 && row.n_models_significant === row.n_models;
+        return row;
+      }
       row.value = toNum(row.value);
       row.ci_low = toNum(row.ci_low);
       row.ci_high = toNum(row.ci_high);
@@ -114,18 +139,19 @@
     pending.sort[kind] = null;
   }
 
-  function loadText(kind, text, sourceName) {
+  function loadText(kind, text, sourceName, bundled) {
     var table = E.parseCSV(text);
     var detected = detectKind(table.columns);
     if (detected && detected !== kind) kind = detected;
     ingest(kind, table);
+    state.bundled[kind] = !!bundled;
     statusEl.textContent = (statusEl.textContent ? statusEl.textContent + ' · ' : '') +
       sourceName + ' (' + table.rows.length + ' rows, ' + kind + ')';
   }
 
   function loadBundled() {
     showError('');
-    statusEl.textContent = 'Loading results/results_fairness.csv and results/results_performance.csv…';
+    statusEl.textContent = 'Loading results/results_fairness.csv, results_performance.csv and summary.csv…';
     Promise.all([
       fetch('results/results_fairness.csv').then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -134,17 +160,22 @@
       fetch('results/results_performance.csv').then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
+      }),
+      fetch('results/summary.csv').then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
       })
     ]).then(function (texts) {
       statusEl.textContent = '';
-      loadText('fairness', texts[0], 'results/results_fairness.csv');
-      loadText('performance', texts[1], 'results/results_performance.csv');
+      loadText('fairness', texts[0], 'results/results_fairness.csv', true);
+      loadText('performance', texts[1], 'results/results_performance.csv', true);
+      loadText('summary', texts[2], 'results/summary.csv', true);
       render();
     }).catch(function (err) {
       statusEl.textContent = '';
       showError('Could not fetch the bundled results/ CSVs (' + err.message + '). ' +
         'This works once the site is served over HTTP - locally over file:// the browser ' +
-        'blocks it. Drop results_fairness.csv / results_performance.csv below instead.');
+        'blocks it. Drop results_fairness.csv / results_performance.csv / summary.csv below instead.');
     });
   }
 
@@ -156,11 +187,12 @@
         var kind = detectKind(table.columns);
         if (!kind) {
           showError(file.name + ' does not look like a results_fairness.csv or ' +
-            'results_performance.csv export (expected value/p_value columns; summary.csv roll-ups are not supported).');
+            'results_performance.csv / summary.csv export (expected value/p_value, or mean_value/n_models, columns).');
           return;
         }
         showError('');
         ingest(kind, table);
+        state.bundled[kind] = false;
         statusEl.textContent = file.name + ' (' + table.rows.length + ' rows, ' + kind + ')';
         render();
       } catch (err) {
@@ -322,6 +354,24 @@
       return;
     }
     var isFairness = kind === 'fairness';
+    if (kind === 'summary') {
+      var shead = headerCell(kind, 'audit', 'Audit') + headerCell(kind, 'strategy', 'Strategy') +
+        headerCell(kind, 'protected_attribute', 'Attribute') + headerCell(kind, 'metric', 'Metric') +
+        headerCell(kind, 'mean_value', 'Mean value') +
+        headerCell(kind, 'n_models_significant', 'Models significant');
+      var sbody = rows.map(function (r) {
+        return '<tr><td>' + esc(r.audit) + '</td><td>' + esc(r.strategy) + '</td><td>' +
+          esc(r.protected_attribute) + '</td><td>' + esc(r.metric) + '</td><td>' +
+          (r.mean_value === null ? '' : r.mean_value.toFixed(4)) + '</td><td class="' +
+          (r.significant ? 'bench-sig-yes' : 'bench-sig-no') + '">' +
+          (r.n_models_significant === null ? '' : r.n_models_significant) + ' / ' +
+          (r.n_models === null ? '' : r.n_models) + '</td></tr>';
+      }).join('');
+      tableHost.innerHTML = '<table class="bench-table"><thead><tr>' + shead + '</tr></thead>' +
+        '<tbody>' + sbody + '</tbody></table>';
+      wireSortButtons(kind);
+      return;
+    }
     var head = isFairness
       ? headerCell(kind, 'audit', 'Audit') + headerCell(kind, 'strategy', 'Strategy') +
         headerCell(kind, 'model', 'Model') + headerCell(kind, 'protected_attribute', 'Attribute') +
@@ -355,7 +405,10 @@
 
     tableHost.innerHTML = '<table class="bench-table"><thead><tr>' + head + '</tr></thead>' +
       '<tbody>' + body + '</tbody></table>';
+    wireSortButtons(kind);
+  }
 
+  function wireSortButtons(kind) {
     Array.prototype.forEach.call(tableHost.querySelectorAll('.bench-sort-btn'), function (btn) {
       btn.addEventListener('click', function () {
         var field = btn.dataset.field;
@@ -368,54 +421,172 @@
   }
 
   // ── Rendering: chart ──────────────────────────────────────────────────
-  // Fairness: needs a metric + protected attribute so every bar shares a
-  // scale. Performance (issue #762): needs a metric (accuracy/AUC/F1 differ
+  // Fairness/summary: needs a metric + protected attribute so every bar shares
+  // a scale. Performance (issue #762): needs a metric (accuracy/AUC/F1 differ
   // in meaning), has no significance flag so all bars use the neutral style.
-  function renderChart(kind, rows) {
+  function chartReady(kind) {
     var filters = state.filters[kind];
-    var ready = kind === 'fairness'
-      ? (filters.metric && filters.protected_attribute) : filters.metric;
-    if (!ready) {
-      chartHost.innerHTML = '';
-      chartNote.textContent = kind === 'fairness'
-        ? 'Pick a metric and a protected attribute above to chart every ' +
-          'audit x strategy x model combination on the same scale.'
-        : 'Pick a metric above to chart every audit x strategy x model combination.';
-      chartHost.hidden = true;
-      return;
-    }
-    chartNote.textContent = '';
-    chartHost.hidden = false;
-    if (!rows.length) { chartHost.innerHTML = ''; return; }
+    return kind === 'performance' ? !!filters.metric : !!(filters.metric && filters.protected_attribute);
+  }
 
+  // One model for both the HTML bars and the downloadable SVG/PNG (#796), so
+  // the saved image can never disagree with what is on screen.
+  function chartModel(kind, rows) {
     var maxAbs = rows.reduce(function (m, r) {
       return r.value === null ? m : Math.max(m, Math.abs(r.value));
     }, 0) || 1;
     // Signed metrics (e.g. demographic_parity_diff) draw from a centre line so
     // direction is visible, not just magnitude (#776).
     var signed = rows.some(function (r) { return r.value !== null && r.value < 0; });
-
     var sorted = rows.slice().sort(function (a, b) { return Math.abs(b.value || 0) - Math.abs(a.value || 0); });
-    chartHost.innerHTML = sorted.map(function (r) {
-      var cls = kind === 'fairness' && r.significant ? 'bad' : 'good';
-      var mag = r.value === null ? 0 : Math.abs(r.value) / maxAbs * (signed ? 50 : 100);
-      var offset = signed ? (r.value !== null && r.value < 0 ? 50 - mag : 50) : 0;
-      var style = 'width:' + mag.toFixed(1) + '%' + (offset ? ';margin-left:' + offset.toFixed(1) + '%' : '');
-      var label = r.audit + ' · ' + r.strategy + ' · ' + r.model;
+    return {
+      signed: signed,
+      bars: sorted.map(function (r) {
+        var mag = r.value === null ? 0 : Math.abs(r.value) / maxAbs * (signed ? 50 : 100);
+        var neg = r.value !== null && r.value < 0;
+        return {
+          label: [r.audit, r.strategy].concat(r.model ? [r.model] : []).join(' · '),
+          value: r.value,
+          cls: (kind !== 'performance' && r.significant) ? 'bad' : 'good',
+          neg: neg,
+          width: mag,
+          offset: signed ? (neg ? 50 - mag : 50) : 0
+        };
+      })
+    };
+  }
+
+  function renderChart(kind, rows) {
+    if (!chartReady(kind)) {
+      chartHost.innerHTML = '';
+      chartNote.textContent = kind === 'performance'
+        ? 'Pick a metric above to chart every audit x strategy x model combination.'
+        : 'Pick a metric and a protected attribute above to chart every ' +
+          'audit x strategy' + (kind === 'fairness' ? ' x model' : '') + ' combination on the same scale.';
+      chartHost.hidden = true;
+      chartButtons.hidden = true;
+      return;
+    }
+    chartNote.textContent = '';
+    chartHost.hidden = false;
+    if (!rows.length) { chartHost.innerHTML = ''; chartButtons.hidden = true; return; }
+    chartButtons.hidden = false;
+
+    var model = chartModel(kind, rows);
+    chartHost.innerHTML = model.bars.map(function (bar) {
+      var style = 'width:' + bar.width.toFixed(1) + '%' + (bar.offset ? ';margin-left:' + bar.offset.toFixed(1) + '%' : '');
       return '<div class="bar-row">' +
-        '<span class="bar-label" title="' + esc(label) + '">' + esc(label) + '</span>' +
-        '<span class="bar-track' + (signed ? ' signed' : '') + '"><span class="bar-fill ' + cls +
-          (r.value !== null && r.value < 0 ? ' neg' : '') + '" style="' + style + '"></span></span>' +
-        '<span class="bar-pct">' + (r.value === null ? 'n/a' : r.value.toFixed(4)) + '</span>' +
+        '<span class="bar-label" title="' + esc(bar.label) + '">' + esc(bar.label) + '</span>' +
+        '<span class="bar-track' + (model.signed ? ' signed' : '') + '"><span class="bar-fill ' + bar.cls +
+          (bar.neg ? ' neg' : '') + '" style="' + style + '"></span></span>' +
+        '<span class="bar-pct">' + (bar.value === null ? 'n/a' : bar.value.toFixed(4)) + '</span>' +
         '</div>';
     }).join('');
   }
+
+  // ── Chart as SVG / PNG (issue #796) ────────────────────────────────────
+  function svgEsc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function chartToSvg(model, title) {
+    var LABEL_W = 380, TRACK_W = 400, ROW_H = 24, TOP = 34, W = LABEL_W + TRACK_W + 130;
+    var H = TOP + model.bars.length * ROW_H + 12;
+    var out = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H +
+      '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-labelledby="t"><title id="t">' + svgEsc(title) + '</title>' +
+      '<rect width="100%" height="100%" fill="#f4f1e8"/>' +
+      '<text x="12" y="22" font-family="monospace" font-size="13" fill="#36321f">' + svgEsc(title) + '</text>';
+    if (model.signed) {
+      out += '<line x1="' + (LABEL_W + TRACK_W / 2) + '" y1="' + (TOP - 4) + '" x2="' + (LABEL_W + TRACK_W / 2) +
+        '" y2="' + (H - 8) + '" stroke="#bdb59c"/>';
+    }
+    model.bars.forEach(function (bar, i) {
+      var y = TOP + i * ROW_H;
+      var label = bar.label.length > 54 ? bar.label.slice(0, 53) + '…' : bar.label;
+      var x = LABEL_W + TRACK_W * bar.offset / 100, w = TRACK_W * bar.width / 100;
+      out += '<text x="12" y="' + (y + 14) + '" font-family="monospace" font-size="11" fill="#36321f">' +
+        svgEsc(label) + '</text>' +
+        '<rect x="' + LABEL_W + '" y="' + (y + 3) + '" width="' + TRACK_W + '" height="14" rx="3" fill="#e2dcc9"/>' +
+        '<rect x="' + x.toFixed(1) + '" y="' + (y + 3) + '" width="' + w.toFixed(1) + '" height="14" rx="3" fill="' +
+        (bar.cls === 'bad' ? '#a63a22' : '#2f6b4f') + '"' + (bar.neg ? ' opacity="0.75"' : '') + '/>' +
+        '<text x="' + (LABEL_W + TRACK_W + 10) + '" y="' + (y + 14) + '" font-family="monospace" font-size="11" fill="#7d7459">' +
+        (bar.value === null ? 'n/a' : bar.value.toFixed(4)) + '</text>';
+    });
+    return out + '</svg>';
+  }
+
+  function chartTitle(kind) {
+    var f = state.filters[kind], parts = [f.metric];
+    if (kind !== 'performance') parts.push(f.protected_attribute);
+    if (f.audit) parts.push(f.audit);
+    return parts.filter(Boolean).join(' · ') + ' (' + kind + ')';
+  }
+
+  function saveBlob(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function currentChartSvg() {
+    var kind = state.tab;
+    if (!state[kind] || !chartReady(kind)) return null;
+    var rows = sortedRows(kind, filteredRows(kind));
+    return rows.length ? chartToSvg(chartModel(kind, rows), chartTitle(kind)) : null;
+  }
+
+  chartSvgBtn.addEventListener('click', function () {
+    var svg = currentChartSvg();
+    if (svg) saveBlob(new Blob([svg], { type: 'image/svg+xml' }), 'benchmark-' + state.tab + '-chart.svg');
+  });
+
+  chartPngBtn.addEventListener('click', function () {
+    var svg = currentChartSvg();
+    if (!svg) return;
+    var img = new Image();
+    img.onload = function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = img.width * 2; canvas.height = img.height * 2;
+      var ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob(function (blob) {
+        if (blob) saveBlob(blob, 'benchmark-' + state.tab + '-chart.png');
+      }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+
+  // ── Committed figures (issue #795) ─────────────────────────────────────
+  // results/figures/<audit>_strategies.png is rendered by faircode/figures.py;
+  // shown when exactly one audit is selected on bundled data (a dropped user
+  // export has no matching file).
+  function renderFigure(kind) {
+    var audit = state.filters[kind].audit;
+    if (!audit || !state.bundled[kind] || kind === 'performance') {
+      figureBlock.hidden = true;
+      figureImg.removeAttribute('src');
+      return;
+    }
+    figureImg.alt = 'Fairness gap by mitigation strategy for the ' + audit +
+      ' audit, rendered by faircode/figures.py from results_fairness.csv';
+    figureImg.src = 'results/figures/' + encodeURIComponent(audit) + '_strategies.png';
+    figureBlock.hidden = false;
+  }
+  figureImg.addEventListener('error', function () { figureBlock.hidden = true; });
 
   // ── Export of the current (filtered + sorted) view (issue #761) ────────
   var csvField = E.csvField;
 
   function rowsToCsv(kind, rows) {
-    var cols = kind === 'fairness' ? FAIRNESS_COLUMNS : PERFORMANCE_COLUMNS;
+    var cols = columnsFor(kind);
     return [cols.join(',')].concat(rows.map(function (r) {
       return cols.map(function (c) { return csvField(r[c]); }).join(',');
     })).join('\r\n') + '\r\n';
@@ -457,7 +628,7 @@
     var params;
     try { params = new URLSearchParams(window.location.search); } catch (e) { return false; }
     var tab = params.get('tab');
-    if (tab !== 'fairness' && tab !== 'performance') return false;
+    if (tab !== 'fairness' && tab !== 'performance' && tab !== 'summary') return false;
     state.tab = tab;
     var f = {};
     FILTER_FIELDS[tab].forEach(function (field) { if (params.get(field)) f[field] = params.get(field); });
@@ -478,7 +649,7 @@
   function render() {
     var kind = state.tab;
     var data = state[kind];
-    resultsEl.hidden = !(state.fairness || state.performance);
+    resultsEl.hidden = !(state.fairness || state.performance || state.summary);
     if (!data) {
       filterBar.innerHTML = '';
       significantOnlyInput.parentElement.hidden = true;
@@ -486,6 +657,8 @@
       summaryEl.textContent = '';
       tableHost.innerHTML = '<p class="section-note">Load ' + kind + ' results above to explore them.</p>';
       chartHost.innerHTML = ''; chartHost.hidden = true; chartNote.textContent = '';
+      chartButtons.hidden = true;
+      figureBlock.hidden = true;
       exportBtn.hidden = true;
       clearBtn.hidden = true;
       legendEl.hidden = true;
@@ -500,6 +673,7 @@
       (sigCount !== null ? ' · ' + sigCount.toLocaleString() + ' significant' : '');
     renderTable(kind, rows);
     renderChart(kind, rows);
+    renderFigure(kind);
     exportBtn.hidden = false;
     clearBtn.hidden = false;
     legendEl.hidden = !(kind === 'fairness' && rows.some(function (r) { return r.small_sample_warning; }));

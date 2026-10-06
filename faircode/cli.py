@@ -295,6 +295,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.proxy_alpha is not None and not 0 < args.proxy_alpha <= 1:
             print("error: --proxy-alpha must be in (0, 1]", file=sys.stderr)
             return 2
+        if args.proxy_alpha is not None and not args.proxy_hints:
+            print("error: --proxy-alpha needs --proxy-hints", file=sys.stderr)
+            return 2
         if args.proxy_hints_with and not args.proxy_hints:
             print("error: --proxy-hints-with needs --proxy-hints", file=sys.stderr)
             return 2
@@ -432,6 +435,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.proxy_alpha is not None and not 0 < args.proxy_alpha <= 1:
             print("error: --proxy-alpha must be in (0, 1]", file=sys.stderr)
+            return 2
+        if args.proxy_alpha is not None and not args.proxy_hints:
+            print("error: --proxy-alpha needs --proxy-hints", file=sys.stderr)
             return 2
         if (args.proxy_hints_with_a or args.proxy_hints_with_b) and not args.proxy_hints:
             print("error: --proxy-hints-with-a/-b needs --proxy-hints", file=sys.stderr)

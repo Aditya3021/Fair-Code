@@ -1116,3 +1116,23 @@ def test_profile_proxy_alpha_changes_which_pairs_are_reported(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["proxy_hints"]
     assert main(["profile", str(path), "--proxy-hints", "--proxy-alpha", "1e-300", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["proxy_hints"] == []
+
+
+def test_proxy_alpha_without_proxy_hints_returns_2_on_both_subcommands(tmp_path, capsys):
+    """#804: --proxy-alpha alone used to validate and then silently do nothing."""
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    assert main(["profile", str(path), "--proxy-alpha", "0.01"]) == 2
+    assert "--proxy-alpha needs --proxy-hints" in capsys.readouterr().err
+    assert main(["compare", str(path), str(path), "--proxy-alpha", "0.01"]) == 2
+    assert "--proxy-alpha needs --proxy-hints" in capsys.readouterr().err
+
+
+def test_compare_csv_export_unwritable_path_returns_2_with_clean_error(tmp_path, capsys):
+    """#799: compare --csv goes through the same helper from its own call site."""
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    bad = tmp_path / "missing-dir" / "out.csv"
+    assert main(["compare", str(path), str(path), "--csv", str(bad)]) == 2
+    err = capsys.readouterr().err
+    assert "could not write CSV export" in err and "Traceback" not in err

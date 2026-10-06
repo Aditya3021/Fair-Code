@@ -44,6 +44,7 @@ from .profiler import _resolve_opts, parse_reference, profile
 from .provenance import build as build_provenance
 from .proxy import parse_held_out_specs
 from .proxy import proxy_hints as compute_proxy_hints
+from .report import compare_to_csv, to_csv
 
 _MAP_CHOICES = VALID_KINDS + ("ignore",)
 
@@ -154,6 +155,22 @@ def _build_opts(min_share=None, intersection_floor=None, imbalance_flag=None,
     if reference_path:
         opts["reference"] = parse_reference(_read_table_or_raise(reference_path))
     return opts
+
+
+def _as_format(result, fmt, csv_writer):
+    """Optionally render a profile/compare result as the CLI's flat CSV (#807).
+
+    `fmt="json"` (default) returns the result unchanged. `fmt="csv"` returns
+    {"csv": "<text>"} - always one JSON object, like the other tools - written
+    by the same to_csv/compare_to_csv the CLI's --csv uses, so the text is
+    identical to `--csv --csv-provenance` (or plain `--csv` when the result was
+    produced with include_provenance=false).
+    """
+    if fmt == "json":
+        return result
+    if fmt != "csv":
+        raise ValueError(f"format must be 'json' or 'csv', got {fmt!r}")
+    return {"csv": csv_writer(result, provenance=result.get("provenance"))}
 
 
 def _profile_dataset_impl(path, overrides=None, cross=None, reference_path=None,
@@ -400,7 +417,8 @@ def build_server():
                         min_group_size: int | None = None,
                         include_provenance: bool = True,
                         max_categorical_card: int | None = None,
-                        max_dimension_groups: int | None = None) -> dict:
+                        max_dimension_groups: int | None = None,
+                        format: str = "json") -> dict:
         """Profile a tabular dataset (.csv/.tsv/.xlsx/.json/.parquet) for
         demographic representation: per-dimension imbalance/missing/skew,
         intersectional gaps, and an overall score/grade.
@@ -423,13 +441,18 @@ def build_server():
         faircode version, a SHA-256 hash of the dataset file, and the resolved
         thresholds - so the result can be tied back to exactly what produced
         it later, without having to trust whoever ran it.
+
+        `format` ("json", the default, or "csv") - with "csv" the result is
+        `{"csv": "..."}`, the same flat one-row-per-group table `faircode
+        profile --csv` writes (with its provenance section unless
+        `include_provenance` is false), ready for a spreadsheet.
         """
         try:
-            return _profile_dataset_impl(
+            return _as_format(_profile_dataset_impl(
                 path, overrides, cross, reference_path, min_share,
                 intersection_floor, imbalance_flag, missing_flag,
                 min_group_size, include_provenance, max_categorical_card,
-                max_dimension_groups)
+                max_dimension_groups), format, to_csv)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 
@@ -448,7 +471,8 @@ def build_server():
                          held_out_with_a: list[str] | None = None,
                          held_out_with_b: list[str] | None = None,
                          alpha: float | None = None,
-                         correction: str | None = None) -> dict:
+                         correction: str | None = None,
+                         format: str = "json") -> dict:
         """Compare two tabular datasets (e.g. a training set and a production
         snapshot) for representation drift: which dimensions/groups appeared,
         disappeared, or shifted share, plus a population-stability-index-based
@@ -470,14 +494,16 @@ def build_server():
         --proxy-hints-with-a/-b; `alpha` (default 0.05, in (0, 1]) is the
         proxy-hint significance level (--proxy-alpha); `correction` ("bonferroni" or
         "holm") applies a multiple-comparison adjustment across tested pairs
-        (--proxy-correction) and adds `p_adjusted` to each hint.
+        (--proxy-correction) and adds `p_adjusted` to each hint. `format`
+        ("json" default, or "csv") returns `{"csv": "..."}` - the same text
+        `faircode compare --csv` writes.
         """
         try:
-            return _compare_datasets_impl(
+            return _as_format(_compare_datasets_impl(
                 path_a, path_b, overrides, min_share, intersection_floor,
                 imbalance_flag, missing_flag, min_group_size, include_provenance,
                 proxy_hints, max_categorical_card, max_dimension_groups,
-                held_out_with_a, held_out_with_b, alpha, correction)
+                held_out_with_a, held_out_with_b, alpha, correction), format, compare_to_csv)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 

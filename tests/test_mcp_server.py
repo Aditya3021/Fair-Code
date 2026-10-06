@@ -678,3 +678,24 @@ def test_proxy_hints_correction_param_adds_p_adjusted_and_rejects_unknown(tmp_pa
     assert "p_adjusted" not in _proxy_hints_impl(str(p))["hints"][0]
     with pytest.raises(ValueError, match="correction"):
         _proxy_hints_impl(str(p), correction="fdr")
+
+
+def test_as_format_csv_matches_the_cli_writers_and_rejects_unknown(tmp_path):
+    """#807: MCP's csv format is byte-identical to faircode's to_csv/compare_to_csv."""
+    from faircode.mcp_server import _as_format
+    from faircode.report import compare_to_csv, to_csv
+
+    p = tmp_path / "a.csv"
+    p.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    prof = _profile_dataset_impl(str(p))
+    out = _as_format(prof, "csv", to_csv)
+    assert out == {"csv": to_csv(prof, provenance=prof["provenance"])}
+    assert out["csv"].startswith("dimension,kind,label,count,share,")
+    assert "provenance_key" in out["csv"]
+    plain = _as_format(_profile_dataset_impl(str(p), include_provenance=False), "csv", to_csv)
+    assert "provenance_key" not in plain["csv"]
+    cmp = _compare_datasets_impl(str(p), str(p))
+    assert _as_format(cmp, "csv", compare_to_csv)["csv"].startswith("dimension,kind_a,kind_b,")
+    assert _as_format(prof, "json", to_csv) is prof
+    with pytest.raises(ValueError, match="format must be"):
+        _as_format(prof, "xml", to_csv)

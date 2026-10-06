@@ -124,6 +124,15 @@ separate, non-parity-tested module in each engine, exercised by cross-checking k
 known-unrelated fixtures against `scipy.stats.chi2_contingency` (`tests/test_js_parity.py`) rather
 than by the bit-for-bit parity assertion the rest of this file describes.
 
+**Tunables.** The significance level defaults to `p < 0.05` and is `--proxy-alpha ALPHA` on the CLI,
+`alpha` on the MCP tools and a "Significance level" input in the web views; it must be in `(0, 1]`
+and, like `--proxy-hints-with`, errors if given without `--proxy-hints`. An opt-in multiple-comparison
+correction (`--proxy-correction bonferroni|holm`, MCP `correction`, a web dropdown) adjusts p-values
+across every testable pair - Bonferroni is `min(1, p·m)`, Holm is the step-down procedure with a
+running maximum - reports a pair only when its *adjusted* p is below alpha, and adds `p_adjusted` to
+each hint. The default (no correction) is unchanged. `faircode.proxy.adjust_p_values` and the JS
+`adjustPValues` are cross-checked in `tests/test_js_parity.py`.
+
 **Limitation - a dropped column is invisible by construction.** `proxy_hints()` only tests pairs
 drawn from `dimensions`, the columns actually present in the profiled data. If a protected attribute
 was already removed before profiling - "we dropped the column so it's fine" - it can never be one
@@ -484,3 +493,42 @@ three Phase 2 tools instead read a package-internal, generated mirror under `fai
 (`_explainers/`, built by `scripts/build_explainers.py`; `_results_frozen/`, built by
 `scripts/freeze_paper_results.py`), declared as real `package-data` so it ships in the wheel. See
 issue #388, verified by building an actual wheel and installing it in a clean venv.
+
+---
+
+## 12. CSV export
+
+`faircode profile --csv PATH` and `faircode compare --csv PATH` write a flat table meant for a
+spreadsheet or BI tool; the web profiler's and compare view's **Download CSV** buttons, and the MCP
+tools' `format="csv"`, emit the same text. The Python writers are `faircode.report.to_csv` /
+`compare_to_csv` and the browser writers are `buildCsvReport` / `buildCompareCsvReport`; a
+cross-engine test (`tests/test_js_parity.py`) asserts they produce the same file. Rows end in CRLF
+and cells are quoted only when they contain a comma, quote or newline (Python `csv` defaults).
+
+**Profile.** Header `dimension,kind,label,count,share,ci_low,ci_high,under_represented,small_group`,
+one row per group of every dimension (not just the first 12 shown on screen), then optional sections,
+each preceded by a blank row and its own header, in this order:
+
+1. `flag` - one row per flag message;
+2. reference baseline (only when `--reference` was used) -
+   `dimension,reference_label,expected,actual,delta,reference_deviation`;
+3. proxy hints (only when run) - `proxy_hint_a,proxy_hint_b,p_value,cramers_v`, plus `p_adjusted`
+   when a correction was requested;
+4. provenance (only with `--csv-provenance` / the web checkbox / MCP `include_provenance`) -
+   `provenance_key,provenance_value`, nested objects flattened to dotted keys (`params.min_share`),
+   lists as JSON text, `null` as an empty cell. The values are exactly the block `--json` attaches
+   (section 10).
+
+**Compare.** Group rows `dimension,kind_a,kind_b,label,share_a,share_b,share_delta,status`, a
+dimension-summary section `dimension,kind_mismatch,dimension_score_a,dimension_score_b,
+dimension_score_delta,psi,tvd,drift_level`, `flag`, proxy hints (a leading `dataset` column holds `A`
+or `B`), and provenance. A dimension skipped for a kind mismatch has no group rows, only its summary
+row.
+
+**Formula injection.** A *text* cell that begins with `=`, `+`, `-`, `@`, tab or CR gets a single-quote
+prefix so a spreadsheet does not evaluate it as a formula (OWASP CSV-injection guidance); numbers and
+booleans are never touched, so real negative values stay numeric.
+
+**stdout.** `--csv -` streams the CSV to stdout, suppresses the terminal report so the stream stays
+pure CSV, and is rejected together with `--json` (both would write to stdout).
+

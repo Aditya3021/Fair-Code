@@ -991,6 +991,10 @@ faircode profile data.csv --json                   # machine-readable
 cat data.csv | faircode profile -                  # pipe CSV/TSV in via stdin
 faircode profile data.csv --html report.html       # standalone HTML report
 faircode profile data.csv --csv groups.csv         # flat, one-row-per-group CSV export
+faircode profile data.csv --csv -                  # stream the CSV to stdout (pipe it onward)
+faircode profile data.csv --csv out.csv --csv-provenance   # append dataset hash + thresholds to the CSV
+faircode profile data.csv --max-categorical-card 40 --max-dimension-groups 100   # widen what counts as a dimension
+faircode profile data.csv --proxy-hints --proxy-alpha 0.01 --proxy-correction holm   # stricter proxy check
 faircode profile data.csv --fail-under 70          # fail CI if score is below 70
 faircode profile data.csv --min-group-size 50      # warn on subgroups under 50 rows
 faircode compare train.csv prod.csv                # representation drift, A → B (PSI)

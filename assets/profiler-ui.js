@@ -441,7 +441,8 @@
         return;
       }
     }
-    var hints = E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut);
+    var hints = E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut,
+      document.getElementById('proxyCorrectionInput').value || null);
     // Attach to the result so Download report / Copy as JSON / Download CSV
     // include what's on screen (issue #758).
     currentResult.proxy_hints = hints;
@@ -456,7 +457,8 @@
       row.className = 'proxy-hint-row';
       row.innerHTML = '<span class="proxy-hint-pair">' + esc(h.a) + ' × ' + esc(h.b) + '</span>' +
         '<span class="proxy-hint-stats">p ' + h.p_value.toExponential(2) +
-        ' · Cramer’s V ' + h.cramers_v.toFixed(4) + '</span>';
+        ' · Cramer’s V ' + h.cramers_v.toFixed(4) +
+        (h.p_adjusted !== undefined ? ' · adj p ' + h.p_adjusted.toExponential(2) : '') + '</span>';
       list.appendChild(row);
     });
     host.appendChild(list);
@@ -719,7 +721,7 @@
         '(chi-squared association, informational)</span></h2><ul>' +
         r.proxy_hints.map(function (h) {
           return '<li>' + esc(h.a) + ' ↔ ' + esc(h.b) + ' (χ² p=' + h.p_value.toPrecision(4) +
-            ', Cramér’s V=' + h.cramers_v.toFixed(2) + ')</li>';
+            ', Cramér’s V=' + h.cramers_v.toFixed(2) + (h.p_adjusted !== undefined ? ', adj p=' + h.p_adjusted.toPrecision(4) : '') + ')</li>';
         }).join('') + '</ul></section>';
     }
     var dimBlocks = r.dimensions.map(function (d) {
@@ -839,8 +841,11 @@
     out += csvRow([]) + csvRow(['flag']);
     r.flags.forEach(function (f) { out += csvRow([f]); });
     if (r.proxy_hints && r.proxy_hints.length) {
-      out += csvRow([]) + csvRow(['proxy_hint_a', 'proxy_hint_b', 'p_value', 'cramers_v']);
-      r.proxy_hints.forEach(function (h) { out += csvRow([h.a, h.b, h.p_value, h.cramers_v]); });
+      var adj = r.proxy_hints.some(function (h) { return h.p_adjusted !== undefined; });
+      out += csvRow([]) + csvRow(['proxy_hint_a', 'proxy_hint_b', 'p_value', 'cramers_v'].concat(adj ? ['p_adjusted'] : []));
+      r.proxy_hints.forEach(function (h) {
+        out += csvRow([h.a, h.b, h.p_value, h.cramers_v].concat(adj ? [h.p_adjusted] : []));
+      });
     }
     return out;
   }

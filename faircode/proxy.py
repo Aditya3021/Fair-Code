@@ -20,6 +20,28 @@ import pandas as pd
 from .profiler import _age_band, _age_to_numeric, _is_categorical_age_sentinel, _looks_like_dates
 
 PROXY_ALPHA = 0.05
+PROXY_CORRECTIONS = ("bonferroni", "holm")
+
+
+def adjust_p_values(p_values, method):
+    """Family-wise error correction over every tested pair (#806).
+
+    bonferroni: min(1, p * m). holm: the step-down procedure - sort ascending,
+    multiply the i-th smallest (0-based) by (m - i), then take a running max so
+    adjusted values never decrease, capped at 1. Returned in input order.
+    """
+    m = len(p_values)
+    if method == "bonferroni":
+        return [min(1.0, p * m) for p in p_values]
+    if method == "holm":
+        order = sorted(range(m), key=lambda i: p_values[i])
+        adjusted = [0.0] * m
+        running = 0.0
+        for rank, i in enumerate(order):
+            running = max(running, min(1.0, p_values[i] * (m - rank)))
+            adjusted[i] = running
+        return adjusted
+    raise ValueError(f"correction must be one of {PROXY_CORRECTIONS}, got {method!r}")
 
 
 def _labelize(df, name, kind):
@@ -78,7 +100,7 @@ def parse_held_out_specs(specs, df: pd.DataFrame, read_table, *, flag="--proxy-h
 
 
 def proxy_hints(df: pd.DataFrame, dimensions: list, alpha=PROXY_ALPHA,
-                held_out: dict | None = None) -> list:
+                held_out: dict | None = None, correction: str | None = None) -> list:
     """Chi-squared test of independence over every pair of detected dimensions.
 
     Returns pairs with p < alpha, most-significant first, each with its p-value
@@ -93,9 +115,16 @@ def proxy_hints(df: pd.DataFrame, dimensions: list, alpha=PROXY_ALPHA,
     Held-out columns are compared to every detected dimension and to each
     other, treated as plain categorical values (no age-band normalization,
     since there's no detected `kind` for a column that was never profiled).
+
+    `correction` (None, "bonferroni" or "holm") opts in to a multiple-comparison
+    adjustment across every testable pair (#806): a pair is reported only if its
+    adjusted p-value is below `alpha`, and each hint then also carries
+    `p_adjusted`. Default None keeps the original uncorrected behaviour.
     """
     if not 0 < alpha <= 1:
         raise ValueError(f"alpha must be in (0, 1], got {alpha}")
+    if correction is not None and correction not in PROXY_CORRECTIONS:
+        raise ValueError(f"correction must be one of {PROXY_CORRECTIONS}, got {correction!r}")
     try:
         from scipy.stats import chi2_contingency
     except ImportError as exc:  # pragma: no cover - depends on optional extra
@@ -108,7 +137,7 @@ def proxy_hints(df: pd.DataFrame, dimensions: list, alpha=PROXY_ALPHA,
         labelized[name] = series.astype("object")
 
     names = list(labelized)
-    hints = []
+    tested = []
     for i in range(len(names)):
         for j in range(i + 1, len(names)):
             name_a, name_b = names[i], names[j]
@@ -119,12 +148,19 @@ def proxy_hints(df: pd.DataFrame, dimensions: list, alpha=PROXY_ALPHA,
             n = int(ct.to_numpy().sum())
             k = min(ct.shape) - 1
             cramers_v = math.sqrt(chi2 / (n * k)) if n and k else 0.0
-            if p_value < alpha:
-                hints.append({
-                    "a": name_a, "b": name_b,
-                    "p_value": p_value,
-                    "cramers_v": round(cramers_v, 4),
-                    "chi2": round(float(chi2), 2),
-                })
+            tested.append({
+                "a": name_a, "b": name_b,
+                "p_value": p_value,
+                "cramers_v": round(cramers_v, 4),
+                "chi2": round(float(chi2), 2),
+            })
+    if correction is None:
+        hints = [h for h in tested if h["p_value"] < alpha]
+    else:
+        adjusted = adjust_p_values([h["p_value"] for h in tested], correction)
+        hints = []
+        for h, p_adj in zip(tested, adjusted):
+            if p_adj < alpha:
+                hints.append(dict(h, p_adjusted=p_adj))
     hints.sort(key=lambda h: h["p_value"])
     return hints

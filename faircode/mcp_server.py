@@ -185,7 +185,7 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
                            min_group_size=None, include_provenance=True,
                            proxy_hints=False, max_categorical_card=None,
                            max_dimension_groups=None, held_out_with_a=None,
-                           held_out_with_b=None, alpha=None):
+                           held_out_with_b=None, alpha=None, correction=None):
     overrides = overrides or {}
     df_a = _read_table_or_raise(path_a)
     df_b = _read_table_or_raise(path_b)
@@ -206,6 +206,7 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
         result["sheet_note_b"] = note_b
     if proxy_hints:
         kw = {} if alpha is None else {"alpha": alpha}
+        kw["correction"] = correction
         held_a = parse_held_out_specs(held_out_with_a, df_a, _read_table_or_raise,
                                       flag="held_out_with_a") if held_out_with_a else None
         held_b = parse_held_out_specs(held_out_with_b, df_b, _read_table_or_raise,
@@ -222,7 +223,8 @@ def _compare_datasets_impl(path_a, path_b, overrides=None,
     return result
 
 
-def _proxy_hints_impl(path, overrides=None, held_out_with=None, alpha=None):
+def _proxy_hints_impl(path, overrides=None, held_out_with=None, alpha=None,
+                      correction=None):
     """`overrides` forces a column's detected kind the same way profile()'s
     own `overrides` does; no other threshold knob affects this tool -
     proxy_hints() (faircode/proxy.py) tests every detected dimension
@@ -254,6 +256,7 @@ def _proxy_hints_impl(path, overrides=None, held_out_with=None, alpha=None):
     held_out = parse_held_out_specs(held_out_with, df, _read_table_or_raise,
                                     flag="held_out_with") if held_out_with else None
     kw = {} if alpha is None else {"alpha": alpha}
+    kw["correction"] = correction
     output = {"hints": compute_proxy_hints(df, result["dimensions"], held_out=held_out, **kw)}
     notes = [n for n in (_sheet_note(path),) if n]
     notes += [n for spec in (held_out_with or []) for n in (_sheet_note(spec.partition("=")[0]),) if n]
@@ -444,7 +447,8 @@ def build_server():
                          max_dimension_groups: int | None = None,
                          held_out_with_a: list[str] | None = None,
                          held_out_with_b: list[str] | None = None,
-                         alpha: float | None = None) -> dict:
+                         alpha: float | None = None,
+                         correction: str | None = None) -> dict:
         """Compare two tabular datasets (e.g. a training set and a production
         snapshot) for representation drift: which dimensions/groups appeared,
         disappeared, or shifted share, plus a population-stability-index-based
@@ -464,21 +468,24 @@ def build_server():
         (need `proxy_hints`) are lists of "PATH=COLUMN" strings testing a column
         already dropped from dataset A / B, mirroring the CLI's
         --proxy-hints-with-a/-b; `alpha` (default 0.05, in (0, 1]) is the
-        proxy-hint significance level (--proxy-alpha).
+        proxy-hint significance level (--proxy-alpha); `correction` ("bonferroni" or
+        "holm") applies a multiple-comparison adjustment across tested pairs
+        (--proxy-correction) and adds `p_adjusted` to each hint.
         """
         try:
             return _compare_datasets_impl(
                 path_a, path_b, overrides, min_share, intersection_floor,
                 imbalance_flag, missing_flag, min_group_size, include_provenance,
                 proxy_hints, max_categorical_card, max_dimension_groups,
-                held_out_with_a, held_out_with_b, alpha)
+                held_out_with_a, held_out_with_b, alpha, correction)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 
     @server.tool()
     def proxy_hints(path: str, overrides: dict[str, str] | None = None,
                     held_out_with: list[str] | None = None,
-                    alpha: float | None = None) -> dict:
+                    alpha: float | None = None,
+                    correction: str | None = None) -> dict:
         """Flag pairs of detected demographic columns that are strongly
         statistically associated (chi-squared test of independence, p < `alpha`,
         default 0.05, in (0, 1])
@@ -504,7 +511,7 @@ def build_server():
         section 3 and issue #328.
         """
         try:
-            return _proxy_hints_impl(path, overrides, held_out_with, alpha)
+            return _proxy_hints_impl(path, overrides, held_out_with, alpha, correction)
         except (ValueError, FileNotFoundError, RuntimeError) as exc:
             raise _as_tool_error(exc) from exc
 

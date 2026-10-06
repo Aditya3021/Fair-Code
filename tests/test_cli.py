@@ -1136,3 +1136,17 @@ def test_compare_csv_export_unwritable_path_returns_2_with_clean_error(tmp_path,
     assert main(["compare", str(path), str(path), "--csv", str(bad)]) == 2
     err = capsys.readouterr().err
     assert "could not write CSV export" in err and "Traceback" not in err
+
+
+def test_proxy_correction_flag_requires_proxy_hints_and_adds_p_adjusted(tmp_path, capsys):
+    pytest.importorskip("scipy")
+    rows = ["sex,occupation"] + [
+        f"{'male' if i % 2 == 0 else 'female'},{'engineer' if i % 2 == 0 else 'nurse'}"
+        for i in range(100)
+    ]
+    path = tmp_path / "d.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    assert main(["profile", str(path), "--proxy-correction", "holm"]) == 2
+    assert "--proxy-correction needs --proxy-hints" in capsys.readouterr().err
+    assert main(["profile", str(path), "--proxy-hints", "--proxy-correction", "bonferroni", "--json"]) == 0
+    assert "p_adjusted" in json.loads(capsys.readouterr().out)["proxy_hints"][0]

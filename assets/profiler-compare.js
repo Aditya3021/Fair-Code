@@ -489,7 +489,7 @@
   function proxyHintItems(hints) {
     return hints.map(function (h) {
       return '<li>' + esc(h.a) + ' ↔ ' + esc(h.b) + ' (χ² p=' + h.p_value.toPrecision(4) +
-        ', Cramér’s V=' + h.cramers_v.toFixed(2) + ')</li>';
+        ', Cramér’s V=' + h.cramers_v.toFixed(2) + (h.p_adjusted !== undefined ? ', adj p=' + h.p_adjusted.toPrecision(4) : '') + ')</li>';
     }).join('');
   }
 
@@ -674,8 +674,11 @@
     cmp.flags.forEach(function (f) { out += csvRow([f]); });
     [['proxy_hints_a', 'A'], ['proxy_hints_b', 'B']].forEach(function (k) {
       if (cmp[k[0]] && cmp[k[0]].length) {
-        out += csvRow([]) + csvRow(['dataset', 'proxy_hint_a', 'proxy_hint_b', 'p_value', 'cramers_v']);
-        cmp[k[0]].forEach(function (h) { out += csvRow([k[1], h.a, h.b, h.p_value, h.cramers_v]); });
+        var adj = cmp[k[0]].some(function (h) { return h.p_adjusted !== undefined; });
+        out += csvRow([]) + csvRow(['dataset', 'proxy_hint_a', 'proxy_hint_b', 'p_value', 'cramers_v'].concat(adj ? ['p_adjusted'] : []));
+        cmp[k[0]].forEach(function (h) {
+          out += csvRow([k[1], h.a, h.b, h.p_value, h.cramers_v].concat(adj ? [h.p_adjusted] : []));
+        });
       }
     });
     return out;
@@ -715,15 +718,17 @@
     if (!currentCmp || !currentProfiles) return;
     var alpha = readProxyAlpha(document.getElementById('compareProxyAlphaInput'), proxyResultsEl);
     if (alpha === null) return;
-    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha);
-    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions, alpha);
+    var correction = document.getElementById('compareProxyCorrectionInput').value || null;
+    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, null, correction);
+    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions, alpha, null, correction);
     proxyResultsEl.innerHTML = [['proxy_hints_a', 'A'], ['proxy_hints_b', 'B']].map(function (k) {
       var hints = currentCmp[k[0]];
       return '<h4 class="proxy-hint-side">Dataset ' + k[1] + '</h4>' + (hints.length
         ? '<div class="proxy-hint-list">' + hints.map(function (h) {
             return '<div class="proxy-hint-row"><span class="proxy-hint-pair">' + esc(h.a) + ' × ' +
               esc(h.b) + '</span><span class="proxy-hint-stats">p ' + h.p_value.toExponential(2) +
-              ' · Cramer’s V ' + h.cramers_v.toFixed(4) + '</span></div>';
+              ' · Cramer’s V ' + h.cramers_v.toFixed(4) +
+        (h.p_adjusted !== undefined ? ' · adj p ' + h.p_adjusted.toExponential(2) : '') + '</span></div>';
           }).join('') + '</div>'
         : '<p class="section-note">No column pairs are significantly associated (p &lt; ' + alpha + ').</p>');
     }).join('');

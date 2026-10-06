@@ -293,6 +293,13 @@
         <label class="proxy-alpha">Significance level (<code>--proxy-alpha</code>)
           <input type="number" class="threshold-input" id="proxyAlphaInput" step="any" min="0" max="1" placeholder="0.05" inputmode="decimal">
         </label>
+        <label class="proxy-alpha">Multiple-comparison correction (<code>--proxy-correction</code>)
+          <select class="threshold-input" id="proxyCorrectionInput">
+            <option value="">None</option>
+            <option value="bonferroni">Bonferroni</option>
+            <option value="holm">Holm</option>
+          </select>
+        </label>
         <details class="proxy-heldout">
           <summary>Test a column you already dropped (<code>--proxy-hints-with</code>)</summary>
           <p class="section-note">
@@ -403,6 +410,13 @@
         </p>
         <label class="proxy-alpha">Significance level (<code>--proxy-alpha</code>)
           <input type="number" class="threshold-input" id="compareProxyAlphaInput" step="any" min="0" max="1" placeholder="0.05" inputmode="decimal">
+        </label>
+        <label class="proxy-alpha">Multiple-comparison correction (<code>--proxy-correction</code>)
+          <select class="threshold-input" id="compareProxyCorrectionInput">
+            <option value="">None</option>
+            <option value="bonferroni">Bonferroni</option>
+            <option value="holm">Holm</option>
+          </select>
         </label>
         <button type="button" class="proxy-hints-btn" id="compareProxyHintsBtn">Check for proxy columns</button>
         <div id="compareProxyHintsResults" aria-live="polite"></div>

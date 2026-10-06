@@ -191,6 +191,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="flag strongly-associated column pairs via chi-squared (needs scipy)")
     p.add_argument("--proxy-alpha", type=float, default=None, metavar="ALPHA",
                    help="significance level for --proxy-hints (default 0.05; must be in (0, 1])")
+    p.add_argument("--proxy-correction", choices=("bonferroni", "holm"), default=None,
+                   help="multiple-comparison correction across all tested pairs for "
+                        "--proxy-hints (default: none; adds p_adjusted to each hint)")
     p.add_argument("--proxy-hints-with", action="append", metavar="PATH=COLUMN",
                    help="also test proxy_hints against a column already dropped from "
                         "the dataset; PATH's rows must align 1:1 with the profiled "
@@ -232,6 +235,9 @@ def main(argv: list[str] | None = None) -> int:
                         "for both datasets separately (needs scipy)")
     c.add_argument("--proxy-alpha", type=float, default=None, metavar="ALPHA",
                    help="significance level for --proxy-hints (default 0.05; must be in (0, 1])")
+    c.add_argument("--proxy-correction", choices=("bonferroni", "holm"), default=None,
+                   help="multiple-comparison correction across all tested pairs for "
+                        "--proxy-hints (default: none; adds p_adjusted to each hint)")
     c.add_argument("--proxy-hints-with-a", action="append", metavar="PATH=COLUMN",
                    help="also test dataset A's proxy_hints against a column already "
                         "dropped from A; PATH's rows must align 1:1 with csv_a "
@@ -297,6 +303,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.proxy_alpha is not None and not args.proxy_hints:
             print("error: --proxy-alpha needs --proxy-hints", file=sys.stderr)
+            return 2
+        if args.proxy_correction and not args.proxy_hints:
+            print("error: --proxy-correction needs --proxy-hints", file=sys.stderr)
             return 2
         if args.proxy_hints_with and not args.proxy_hints:
             print("error: --proxy-hints-with needs --proxy-hints", file=sys.stderr)
@@ -376,7 +385,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.proxy_hints or args.proxy_hints_with:
             held_out = _build_held_out(args.proxy_hints_with, df)
             try:
-                result["proxy_hints"] = proxy_hints(df, result["dimensions"], alpha=_alpha(args), held_out=held_out)
+                result["proxy_hints"] = proxy_hints(df, result["dimensions"], alpha=_alpha(args), correction=args.proxy_correction, held_out=held_out)
             except RuntimeError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 2
@@ -438,6 +447,9 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.proxy_alpha is not None and not args.proxy_hints:
             print("error: --proxy-alpha needs --proxy-hints", file=sys.stderr)
+            return 2
+        if args.proxy_correction and not args.proxy_hints:
+            print("error: --proxy-correction needs --proxy-hints", file=sys.stderr)
             return 2
         if (args.proxy_hints_with_a or args.proxy_hints_with_b) and not args.proxy_hints:
             print("error: --proxy-hints-with-a/-b needs --proxy-hints", file=sys.stderr)
@@ -501,8 +513,8 @@ def main(argv: list[str] | None = None) -> int:
             held_out_a = _build_held_out(args.proxy_hints_with_a, df_a)
             held_out_b = _build_held_out(args.proxy_hints_with_b, df_b)
             try:
-                result["proxy_hints_a"] = proxy_hints(df_a, profile_a["dimensions"], alpha=_alpha(args), held_out=held_out_a)
-                result["proxy_hints_b"] = proxy_hints(df_b, profile_b["dimensions"], alpha=_alpha(args), held_out=held_out_b)
+                result["proxy_hints_a"] = proxy_hints(df_a, profile_a["dimensions"], alpha=_alpha(args), correction=args.proxy_correction, held_out=held_out_a)
+                result["proxy_hints_b"] = proxy_hints(df_b, profile_b["dimensions"], alpha=_alpha(args), correction=args.proxy_correction, held_out=held_out_b)
             except RuntimeError as exc:
                 print(f"error: {exc}", file=sys.stderr)
                 return 2

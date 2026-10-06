@@ -74,3 +74,41 @@ def test_independent_columns_not_flagged():
     })
     hints = proxy_hints(df, profile(df)["dimensions"])
     assert not any({h["a"], h["b"]} == {"sex", "grp"} for h in hints)
+
+
+def test_adjust_p_values_bonferroni_and_holm_known_values():
+    """#806: hand-computed. Holm on [0.01, 0.04, 0.03], m=3: sorted -> 0.03,
+    0.06, 0.04; the running max makes it 0.03, 0.06, 0.06 (input order below)."""
+    from faircode.proxy import adjust_p_values
+
+    assert adjust_p_values([0.01, 0.04, 0.03], "bonferroni") == pytest.approx([0.03, 0.12, 0.09])
+    assert adjust_p_values([0.01, 0.04, 0.03], "holm") == pytest.approx([0.03, 0.06, 0.06])
+    assert adjust_p_values([0.6, 0.9], "bonferroni") == [1.0, 1.0]
+    with pytest.raises(ValueError):
+        adjust_p_values([0.1], "fdr")
+
+
+def _three_dim_frame():
+    n = 120
+    sex = ["m", "f"] * (n // 2)
+    race = ["a" if (i % 2 == 0) == (i % 10 != 0) else "b" for i in range(n)]
+    age = [55 if (sex[i] == "m" and i % 3 == 0) or i % 11 == 0 else 25 for i in range(n)]
+    return pd.DataFrame({"sex": sex, "race": race, "age": age})
+
+
+def test_proxy_hints_correction_adds_p_adjusted_and_is_stricter():
+    pytest.importorskip("scipy")
+    from faircode.detect import detect_columns
+    from faircode.proxy import proxy_hints
+
+    df = _three_dim_frame()
+    dims = [{"name": d["name"], "kind": d["kind"]} for d in detect_columns(df)]
+    plain = proxy_hints(df, dims, alpha=1.0)
+    corrected = proxy_hints(df, dims, alpha=1.0, correction="bonferroni")
+    assert len(plain) == 3 and "p_adjusted" not in plain[0]
+    for h in corrected:
+        assert h["p_adjusted"] == pytest.approx(min(1.0, h["p_value"] * 3))
+    strict = proxy_hints(df, dims, alpha=0.05, correction="holm")
+    assert len(strict) <= len(proxy_hints(df, dims, alpha=0.05))
+    with pytest.raises(ValueError, match="correction"):
+        proxy_hints(df, dims, correction="nope")

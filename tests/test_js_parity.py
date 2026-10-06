@@ -793,7 +793,8 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
 
     ui = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
     assert "proxyHintsBtn.addEventListener('click', renderProxyHints)" in ui
-    assert "E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut)" in ui
+    assert "E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut," in ui
+    assert 'id="proxyCorrectionInput"' in html
 
 
 def _run_ui_exports(csv_path, with_hints):
@@ -930,7 +931,8 @@ def test_compare_view_download_csv_and_proxy_controls_are_wired():
             assert f"getElementById('{element_id}')" in js, element_id
     assert "downloadCsvBtn.addEventListener('click', downloadCompareCsvReport)" in js
     assert "proxyBtn.addEventListener('click', renderCompareProxyHints)" in js
-    assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha)" in js
+    assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, null, correction)" in js
+    assert 'id="compareProxyCorrectionInput"' in html
 
 
 def test_web_and_python_csv_exports_defuse_formula_labels_identically(tmp_path):
@@ -992,3 +994,46 @@ def test_python_js_proxy_hints_held_out_column_parity(tmp_path):
     assert "rows must align 1:1" in js["short"]
     assert "not found" in js["missing"]
     assert "alpha must be in (0, 1]" in js["alpha"]
+
+
+def test_python_js_proxy_correction_parity(tmp_path):
+    """#806: the JS adjustPValues/proxyHints(correction) match faircode.proxy for
+    both methods, and the HTML/CSV exports show the adjusted p-value."""
+    pytest.importorskip("scipy")
+    from faircode.detect import detect_columns
+    from faircode.proxy import adjust_p_values, proxy_hints
+
+    n = 120
+    sex = ["m", "f"] * (n // 2)
+    rows = ["sex,race,age"]
+    for i in range(n):
+        race = "a" if (i % 2 == 0) == (i % 10 != 0) else "b"
+        age = 55 if (sex[i] == "m" and i % 3 == 0) or i % 11 == 0 else 25
+        rows.append(f"{sex[i]},{race},{age}")
+    path = tmp_path / "three.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    df = pd.read_csv(path)
+    dims = [{"name": d["name"], "kind": d["kind"]} for d in detect_columns(df)]
+
+    script = (
+        "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{},{});"
+        "var out={};['bonferroni','holm'].forEach(function(m){"
+        "out[m]=E.proxyHints(t,r.dimensions,1,null,m);});"
+        "try{E.proxyHints(t,r.dimensions,0.05,null,'fdr')}catch(e){out.bad=e.message}"
+        "process.stdout.write(JSON.stringify(out));"
+    )
+    done = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), str(path)],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    js = json.loads(done.stdout)
+    for method in ("bonferroni", "holm"):
+        py = proxy_hints(df, dims, alpha=1.0, correction=method)
+        key = lambda h: (h["a"], h["b"])  # noqa: E731
+        py_map = {key(h): h["p_adjusted"] for h in py}
+        js_map = {key(h): h["p_adjusted"] for h in js[method]}
+        assert py_map.keys() == js_map.keys() and py_map
+        for k in py_map:
+            assert py_map[k] == pytest.approx(js_map[k], rel=1e-6)
+    assert "correction must be" in js["bad"]
+    assert adjust_p_values([0.01, 0.04, 0.03], "holm") == pytest.approx([0.03, 0.06, 0.06])

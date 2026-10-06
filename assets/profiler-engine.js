@@ -852,15 +852,34 @@
     return heldTable.rows.map(function (r) { return r[column]; });
   }
 
-  function proxyHints(table, dimensions, alpha, heldOut) {
+  // Mirrors faircode/proxy.py adjust_p_values (#806): bonferroni = min(1, p*m);
+  // holm = step-down with a running max, capped at 1. Returned in input order.
+  function adjustPValues(ps, method) {
+    var m = ps.length, i;
+    if (method === 'bonferroni') return ps.map(function (p) { return Math.min(1, p * m); });
+    if (method === 'holm') {
+      var order = ps.map(function (_, idx) { return idx; })
+        .sort(function (a, b) { return ps[a] - ps[b] || a - b; });
+      var out = new Array(m), running = 0;
+      for (i = 0; i < m; i++) {
+        running = Math.max(running, Math.min(1, ps[order[i]] * (m - i)));
+        out[order[i]] = running;
+      }
+      return out;
+    }
+    throw new Error("correction must be 'bonferroni' or 'holm', got " + method);
+  }
+
+  function proxyHints(table, dimensions, alpha, heldOut, multiCorrection) {
     if (alpha === undefined) alpha = PROXY_ALPHA;
     if (!(alpha > 0 && alpha <= 1)) throw new Error('alpha must be in (0, 1], got ' + alpha);
+    if (multiCorrection) adjustPValues([], multiCorrection); // validates the method name
     var labelized = {}, i, j, k;
     dimensions.forEach(function (d) { labelized[d.name] = labelize(table, d.name, d.kind); });
     Object.keys(heldOut || {}).forEach(function (name) { labelized[name] = heldOut[name]; });
     var names = Object.keys(labelized);
     var nTotal = table.rows.length;
-    var hints = [];
+    var hints = [], tested = [];
 
     for (i = 0; i < names.length; i++) {
       for (j = i + 1; j < names.length; j++) {
@@ -909,15 +928,24 @@
         var pValue = chiSquarePValue(chi2, dof);
         var kMinusOne = Math.min(aKeys.length, bKeys.length) - 1;
         var cramersV = (n && kMinusOne) ? Math.sqrt(chi2 / (n * kMinusOne)) : 0;
-        if (pValue < alpha) {
-          hints.push({
-            a: nameA, b: nameB,
-            p_value: pValue,
-            cramers_v: Math.round(cramersV * 10000) / 10000,
-            chi2: Math.round(chi2 * 100) / 100
-          });
-        }
+        tested.push({
+          a: nameA, b: nameB,
+          p_value: pValue,
+          cramers_v: Math.round(cramersV * 10000) / 10000,
+          chi2: Math.round(chi2 * 100) / 100
+        });
       }
+    }
+    if (!multiCorrection) {
+      tested.forEach(function (h) { if (h.p_value < alpha) hints.push(h); });
+    } else {
+      var adjusted = adjustPValues(tested.map(function (h) { return h.p_value; }), multiCorrection);
+      tested.forEach(function (h, idx) {
+        if (adjusted[idx] < alpha) {
+          hints.push({ a: h.a, b: h.b, p_value: h.p_value, cramers_v: h.cramers_v,
+                       chi2: h.chi2, p_adjusted: adjusted[idx] });
+        }
+      });
     }
     hints.sort(function (x, y) { return x.p_value - y.p_value; });
     return hints;

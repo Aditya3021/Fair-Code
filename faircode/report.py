@@ -54,13 +54,22 @@ class _SafeCsvWriter:
         ])
 
 
+def _adj_text(h) -> str:
+    """", adj p=..." suffix for a hint that carries a multiple-comparison
+    adjusted p-value (#806); empty for the default uncorrected hints."""
+    return f", adj p={h['p_adjusted']:.4g}" if "p_adjusted" in h else ""
+
+
 def _write_proxy_rows(writer, hints, side=None) -> None:
     """Proxy-hint section shared by to_csv/compare_to_csv: a header row, then
     one row per hint (a `dataset` column is added only for compare's A/B)."""
     prefix = ["dataset"] if side else []
-    writer.writerow(prefix + ["proxy_hint_a", "proxy_hint_b", "p_value", "cramers_v"])
+    adjusted = any("p_adjusted" in h for h in hints)
+    writer.writerow(prefix + ["proxy_hint_a", "proxy_hint_b", "p_value", "cramers_v"]
+                    + (["p_adjusted"] if adjusted else []))
     for h in hints:
-        writer.writerow(([side] if side else []) + [h["a"], h["b"], h["p_value"], h["cramers_v"]])
+        writer.writerow(([side] if side else []) + [h["a"], h["b"], h["p_value"], h["cramers_v"]]
+                        + ([h.get("p_adjusted")] if adjusted else []))
 
 
 def to_csv(result: dict) -> str:
@@ -183,7 +192,7 @@ def to_terminal(result: dict) -> str:
         add("=" * WIDTH)
         for h in result["proxy_hints"]:
             add(f"  ~ {h['a']} ↔ {h['b']}  "
-                f"(χ² p={h['p_value']:.4g}, Cramér's V={h['cramers_v']:.2f})")
+                f"(χ² p={h['p_value']:.4g}, Cramér's V={h['cramers_v']:.2f}{_adj_text(h)})")
         add("")
 
     add("=" * WIDTH)
@@ -274,7 +283,7 @@ def compare_to_terminal(cmp: dict) -> str:
             add("=" * WIDTH)
             for h in cmp[key]:
                 add(f"  ~ {h['a']} ↔ {h['b']}  "
-                    f"(χ² p={h['p_value']:.4g}, Cramér's V={h['cramers_v']:.2f})")
+                    f"(χ² p={h['p_value']:.4g}, Cramér's V={h['cramers_v']:.2f}{_adj_text(h)})")
             add("")
 
     if cmp["flags"]:
@@ -420,7 +429,7 @@ def to_html(result: dict) -> str:
     if result.get("proxy_hints"):
         items = "".join(
             f'<li>{esc(h["a"])} ↔ {esc(h["b"])} '
-            f'(χ² p={h["p_value"]:.4g}, Cramér\'s V={h["cramers_v"]:.2f})</li>'
+            f'(χ² p={h["p_value"]:.4g}, Cramér\'s V={h["cramers_v"]:.2f}{_adj_text(h)})</li>'
             for h in result["proxy_hints"]
         )
         proxy_html = (
@@ -616,7 +625,7 @@ def compare_to_html(cmp: dict) -> str:
         if cmp.get(key):
             items = "".join(
                 f'<li>{esc(h["a"])} ↔ {esc(h["b"])} '
-                f'(χ² p={h["p_value"]:.4g}, Cramér\'s V={h["cramers_v"]:.2f})</li>'
+                f'(χ² p={h["p_value"]:.4g}, Cramér\'s V={h["cramers_v"]:.2f}{_adj_text(h)})</li>'
                 for h in cmp[key]
             )
             proxy_html += (

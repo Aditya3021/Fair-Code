@@ -663,3 +663,18 @@ def test_proxy_hints_alpha_is_tunable_and_validated(tmp_path):
     assert _proxy_hints_impl(str(p), alpha=1e-300)["hints"] == []
     with pytest.raises(ValueError, match="alpha"):
         _proxy_hints_impl(str(p), alpha=0)
+
+
+@requires_scipy
+def test_proxy_hints_correction_param_adds_p_adjusted_and_rejects_unknown(tmp_path):
+    """#806: MCP mirrors --proxy-correction."""
+    rows = ["sex,occupation"] + [
+        f"{'male' if i % 2 == 0 else 'female'},{'engineer' if i % 2 == 0 else 'nurse'}"
+        for i in range(100)
+    ]
+    p = tmp_path / "d.csv"
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    assert "p_adjusted" in _proxy_hints_impl(str(p), correction="holm")["hints"][0]
+    assert "p_adjusted" not in _proxy_hints_impl(str(p))["hints"][0]
+    with pytest.raises(ValueError, match="correction"):
+        _proxy_hints_impl(str(p), correction="fdr")

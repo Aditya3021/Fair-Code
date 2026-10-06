@@ -444,9 +444,9 @@ parity obligation of its own - there is no equivalent MCP surface for the JS eng
 
 | Tool | Wraps | Notes |
 |------|-------|-------|
-| `profile_dataset` | `profile()` | Same shape as `profile --json` (section 6), `provenance` (section 10) attached by default via `include_provenance` |
-| `compare_datasets` | `compare()` | Same shape as `compare --json` (section 8), `dataset_hash_a`/`dataset_hash_b` in provenance; `proxy_hints=true` attaches `proxy_hints_a`/`proxy_hints_b`, matching `compare --proxy-hints` |
-| `proxy_hints` | `proxy_hints()` | Returns `{"hints": [...]}`, never a bare list - a list return value gets split by the MCP SDK into one content block per element, and an empty list becomes zero blocks, indistinguishable from an error to a caller |
+| `profile_dataset` | `profile()` | Same shape as `profile --json` (section 6), `provenance` (section 10) attached by default via `include_provenance`; accepts `format="csv"` (returns `{"csv": "<text>"}`, section 12) |
+| `compare_datasets` | `compare()` | Same shape as `compare --json` (section 8), `dataset_hash_a`/`dataset_hash_b` in provenance; `proxy_hints=true` attaches `proxy_hints_a`/`proxy_hints_b`, matching `compare --proxy-hints`. Accepts `held_out_with_a`/`held_out_with_b` (requires `proxy_hints=true`), `alpha`, `correction`, and `format="csv"` |
+| `proxy_hints` | `proxy_hints()` | Returns `{"hints": [...]}`, never a bare list - a list return value gets split by the MCP SDK into one content block per element, and an empty list becomes zero blocks, indistinguishable from an error to a caller. Accepts `alpha` and `correction` |
 | `list_explainers` | `faircode/_explainers/data.json` (mirrored from `assets/explainers-data.json`) | Phase 2: read-only lookup, no analysis. Returns `{"explainers": [{slug, title, subtitle, summary, tags}, ...]}`; optional `tag` filters to explainers carrying it, erroring if none match |
 | `get_explainer` | `faircode/_explainers/<slug>.md` (mirrored from `explainers/<slug>.md`) | Phase 2: returns `{slug, title, subtitle, tags, content}` - `content` is the raw Markdown source. Errors clearly (`FileNotFoundError`) for an unknown slug |
 | `get_benchmark_results` | `faircode/_results_frozen/results_{fairness,performance}.csv` (mirrored from `paper/results-frozen/`) | Phase 2: filters the frozen CSV named by `kind` on exact-match `audit`/`model`/`strategy`/`metric`/`protected_attribute` (a filter naming a column `kind` doesn't have raises `ValueError` rather than being ignored). Returns `{results, total_matches, truncated}`, capped at 200 rows |
@@ -455,9 +455,30 @@ The first three tools accept `overrides` (the section 1 `{column: kind}` map, as
 than repeated `--map COL=KIND` strings) and the relevant section 7 thresholds by name.
 `profile_dataset` also accepts `cross` and `reference_path`, matching `profile`'s `--cross` and
 `--reference`; `compare_datasets` does not, matching `compare`'s own flag set. `proxy_hints` takes no
-threshold parameters at all - only `path`, `overrides`, and `held_out_with` - since it only surfaces
-candidate proxy pairs for a human/agent to review, not a scored or filtered result the section 7
-thresholds would narrow.
+threshold parameters at all - only `path`, `overrides`, and `held_out_with` (plus `alpha` and `correction`) -
+since it only surfaces candidate proxy pairs for a human/agent to review, not a scored or filtered result
+the section 7 thresholds would narrow.
+
+**Export format (`format`).** Both `profile_dataset` and `compare_datasets` accept `format="json"`
+(default) or `format="csv"`. When `"csv"` is requested, the tool returns `{"csv": "<text>"}` using the
+same `to_csv` or `compare_to_csv` writers the CLI relies on (section 12), including the provenance
+section unless `include_provenance=false`. Any invalid `format` string raises `ValueError` (converted to
+`ToolError`).
+
+**Proxy significance and corrections (`alpha`, `correction`).** Both `proxy_hints` and `compare_datasets`
+(when `proxy_hints=true`) accept:
+- `alpha`: float in `(0, 1]`, default `0.05`. Sets the significance threshold for chi-squared tests; pairs
+  with `p >= alpha` (or `p_adjusted >= alpha` when a correction is used) are omitted. Values outside `(0, 1]`
+  raise `ValueError`.
+- `correction`: optional string, either `"bonferroni"` or `"holm"` (default `None`). When supplied, applies
+  a multiple-comparison adjustment across all tested pairs, attaches `p_adjusted` to each returned hint,
+  and filters on `p_adjusted < alpha`. Any invalid correction name raises `ValueError`.
+
+**Dropped attributes on comparison (`held_out_with_a`, `held_out_with_b`).** On `compare_datasets`,
+`held_out_with_a` and `held_out_with_b` accept lists of `"PATH=COLUMN"` strings mirroring the CLI's
+`--proxy-hints-with-a` and `--proxy-hints-with-b`. They require `proxy_hints=true`; specifying either when
+`proxy_hints` is false raises `ValueError("held_out_with_a/held_out_with_b need proxy_hints=true")`.
+
 
 An anticipated failure (an unreadable path, an unknown `overrides` column, `proxy_hints` without
 the `proxy` extra installed) is raised inside the tool as a plain Python exception and converted to

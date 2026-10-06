@@ -218,8 +218,11 @@
     resetThresholdInputs();
     thresholdsBlock.hidden = false;
     renderMapping(); // rebuild the panel for the new column set (once per file load)
+    var heldOut = key === 'A' ? heldOutA : heldOutB;
+    if (heldOut && heldOut.reset) heldOut.reset();
     maybeCompare();
   }
+
 
   function resetThresholdInputs() {
     thresholdInputs.forEach(function (input) {

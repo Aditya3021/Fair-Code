@@ -3,8 +3,8 @@
 # Fair Code - Metrics Tracker
 
 ![Stars](https://img.shields.io/badge/Stars-49-brightgreen?style=flat-square&logo=github)
-![Contributors](https://img.shields.io/badge/Contributors-45-blue?style=flat-square)
-![Forks](https://img.shields.io/badge/Forks-50-orange?style=flat-square)
+![Contributors](https://img.shields.io/badge/Contributors-46-blue?style=flat-square)
+![Forks](https://img.shields.io/badge/Forks-51-orange?style=flat-square)
 ![Watching](https://img.shields.io/badge/Watching-8-yellow?style=flat-square)
 ![Explainers](https://img.shields.io/badge/Explainers-62-blueviolet?style=flat-square)
 ![Countries](https://img.shields.io/badge/Countries-20-informational?style=flat-square)
@@ -45,6 +45,7 @@ Weekly snapshot of project health. Updated every Friday.
 | 2026-W37 | 46 | 33 | 8 | 29 | 30K+ total | 20 | 29 | 7 total |
 | 2026-W39 | 48 | 45 | 8 | 40 | 30K+ total | 20 | 25 | 7 total |
 | 2026-W40 | 49 | 50 | 8 | 45 | 30K+ total | 20 | 41 | 7 total |
+| 2026-W41 | 49 | 51 | 8 | 46 | 30K+ total | 20 | 14 | 7 total |
 
 > **2026-W27 - v1.2.0 shipped:** Open Dataset Profiler (CLI + client-side web tool) released; 23 explainers total.
 >
@@ -95,6 +96,8 @@ Weekly snapshot of project health. Updated every Friday.
 > **2026-W39 - two full audit-and-replenish sweeps (25 issues closed), the post-paper audit backlog reopened, and the AI Fair Recruitment gender-bucketing fix:** Two independently-verified sweeps closed 14 then 11 non-explainer issues (#695-#709, #718-#728), each fixed and committed on its own - doc/number drift across README.md, METRICS.md, ROADMAP.md, CONTRIBUTORS.md, CHANGELOG.md, several explainers, and `.github/`; a profiler MIME-vs-extension dispatch bug; a flaky concurrent-pytest collision; a stale `paper/results-frozen/` version mismatch; and a full `results/` regeneration once drift turned out to reach beyond COMPAS. The larger fix in the second sweep: `AI Fair Recruitment/unfair.py`/`fair.py` were silently folding the dataset's third Gender category (Other) into the "Female" bucket via a `get_dummies` column-name substring match - fixing it to compare the real Male/Female columns directly (matching `audit.yaml`'s own declared groups) moved the audit's headline gap from 4.51% to 4.03% and its bias-reduction figure from 97.3% to 96.1%, cascading into README.md, index.html, `AI Fair Recruitment/README.md`, `notebooks/02_hiring_bias_audit.ipynb`, and 7 explainers that cited the old figures as fact. `render_markdown()` (both the Python build script and its JS mirror) also gained ordered-list support, fixing 9 explainer pages where a numbered list had been silently flattened or fragmented. With the backlog cleared each time, fresh issues were opened to replenish it (11, then 6, each independently researched and verified rather than invented). With the paper freeze confirmed lifted, the 9 audit proposals closed during the freeze as a "timing hold, not a rejection" (#3, #10, #21, #22, #23, #69, #77, #78, #79) were briefly reopened, then closed again same-day on maintainer direction: new audit domains aren't being tracked as repo-requested work right now, in favor of deepening the tools that already exist. Replaced with 9 feature-request issues grounded in real code/doc gaps instead (CLI/web-profiler asymmetries - `--proxy-hints-with` missing from `compare`, no chi-squared proxy detection in the web engine, no CSV export, no expand control past 12 displayed groups, no CLI sample dataset, no shareable compare demo link, two SPEC.md-documented tunables with no flag - plus the interactive benchmark-results dashboard ROADMAP.md's own Phase 5 has left unchecked, and a missing skip-link/`<main>` landmark on `index.html`), alongside 2 new explainer proposals (Algorithmic Recourse, Fairness in Ranking) - **19 open issues total**, back above the 10-15 target range this file's own W37 note first flagged as unmet. **Contributors `29 → 40`** - not a one-week jump: the weekly-tracked "29" had already fallen behind `CONTRIBUTORS.md`'s own full list, which a direct recount (3 core + 37 in the Contributors section) puts at 40. Two real gaps found in that recount: **SatvikMishra08** (#693, syncing `CITATION.cff`'s `date-released` with the `v2.2.0` tag) was a real merged-PR contributor missing from the file entirely, and **saikeerthanakavuri**'s first merged PR (#710, fixing the profiler-ui.js CI-filter gap the first sweep's own replenishment issues had surfaced) was never added either. `@AnayDhawan` also picked up a 5th merged PR (#711, README demo GIF) the first sweep's CONTRIBUTORS.md audit caught as missing but didn't update the PR/commit count for. Corrected to the verified count (40) rather than the incrementally-tracked one, which is the more reliable source per this file's own established practice when the two disagree (see the W32-W35 notes above). Forks `33 → 45`, Stars `46 → 48` (live GitHub numbers, not independently re-verified against social/analytics this note). Issues closed this week: `0 → 25`.
 >
 > **2026-W40 - benchmark dashboard, web/CLI export parity, and five new contributors (41 issues closed):** the Phase 5 benchmark-results dashboard shipped (`benchmark.html`, #744) and then grew filtered CSV export, a performance chart, URL deep links, `aria-live`/`aria-sort` accessibility, signed-metric bars, a visible small-sample badge and notes column, and a Clear control (#761-#764, #775-#777, #784, #787, #788); `faircode profile`/`compare --csv` (#739, with `--csv -` for stdout, #779) gained reference-deviation and proxy-hint sections and spreadsheet-formula-injection protection (#780, #760, #791); proxy-hint detection reached the web profiler for both single and compare views, including a held-out-column test and a tunable significance level on the CLI, MCP and web (#738, #757, #781, #786, #782); across three non-explainer sweeps of 11, 10 and 15 issues. Five first-time contributors had PRs merged ([@thadidaniel-ctrl](https://github.com/thadidaniel-ctrl), [@Tiyatrotist](https://github.com/Tiyatrotist), [@readyagentsdev](https://github.com/readyagentsdev), [@Abitha1861](https://github.com/Abitha1861), [@Yipjunwei](https://github.com/Yipjunwei)). Stars `48 -> 49` and forks `45 -> 50` per GitHub's repo API; contributors recounted at `45` - everyone with a merged PR other than Yash (44 GitHub accounts plus the deleted `TanishGoyal-Dev`). GitHub's contributors page shows a larger number (50) because it also counts the maintainer, `dependabot`, `vercel`, and the Claude and Copilot co-author trailers; the REST contributors API shows only 41 linked accounts because it omits unlinked commit emails and the deleted account; issues closed = everything closed since 2026-09-28; countries and social reach not re-measured this week, carried over.
+>
+> **2026-W41 - the whole CSV/proxy-hint export surface closed out (14 issues closed, one new contributor):** a 15-issue sweep of follow-ups to the previous week's work. The proxy check gained an opt-in Bonferroni/Holm multiple-comparison correction (`--proxy-correction`, MCP `correction`, web dropdown, #806) and now accepts any number of held-out files per dataset - including `.xlsx` and in the compare view - through one shared control (#801-#803); `--proxy-alpha` without `--proxy-hints` became an error (#804). CSV exports gained an opt-in provenance section (`--csv-provenance`, a web checkbox, #800), the web CSV gained the reference-baseline section the Python writer already had (#805), the MCP tools can return the CSV (`format="csv"`, #807), and SPEC.md section 12 plus the README now document the layout and flags (#797, #798). The benchmark dashboard gained a roll-up summary tab for `results/summary.csv`, the committed per-audit figures, and SVG/PNG chart download (#794-#796). [@DevKhizerer](https://github.com/DevKhizerer) joined with PR #809 (screen-reader announcements for proxy-hint results). Forks `50 -> 51`; contributors `45 -> 46`; issues closed = everything closed since 2026-10-05; stars, watching, countries and social reach unchanged or not re-measured.
 
 ---
 
@@ -103,12 +106,12 @@ Weekly snapshot of project health. Updated every Friday.
 | Metric | Current | Target | Timeline |
 |--------|--------:|-------:|----------|
 | Stars | 49 | 50+ | End of 2026 |
-| Forks | 50 | 60+ | End of 2026 |
+| Forks | 51 | 60+ | End of 2026 |
 | Watching | 8 | 12+ | End of 2026 |
-| Contributors | 45 | 20+ | End of 2026 |
+| Contributors | 46 | 20+ | End of 2026 |
 | Social reach | 30K+ | 40K+ | End of 2026 |
 | Countries reached | 20 | 20+ | End of 2026 |
-| Issues closed | 41 (past 7 days) | Track weekly | Ongoing |
+| Issues closed | 14 (past 7 days) | Track weekly | Ongoing |
 | Code audits | 7 | 8+ | End of 2026 |
 | Explainers | 62 | 65+ | End of 2026 |
 
@@ -128,4 +131,4 @@ Weekly snapshot of project health. Updated every Friday.
 
 *Resume-ready line (fill in at application time):*
 
-> Created and scaled Fair Code, an open-source responsible AI platform explaining algorithmic bias through code audits, healthcare-bias case studies, beginner explainers, and contributor-led GitHub documentation; grew the project to **49 stars**, **45 contributors**, **50 forks**, **30K+ social views**, and website visitors from **20 countries**.
+> Created and scaled Fair Code, an open-source responsible AI platform explaining algorithmic bias through code audits, healthcare-bias case studies, beginner explainers, and contributor-led GitHub documentation; grew the project to **49 stars**, **46 contributors**, **51 forks**, **30K+ social views**, and website visitors from **20 countries**.

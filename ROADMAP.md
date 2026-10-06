@@ -27,7 +27,7 @@ Fair Code is an open-source responsible AI platform explaining algorithmic bias,
 
 | Stars | Contributors | Forks | Watching | Social Reach | Countries | Audits | Explainers | CI |
 |:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| 49 | 45 | 50 | 8 | 30K+ | 20 | 7 | 62 | ✅ every push/PR |
+| 49 | 46 | 51 | 8 | 30K+ | 20 | 7 | 62 | ✅ every push/PR |
 
 > The earlier paper freeze has lifted - the real paper, with fresh results, is now planned for next
 > year. `paper/results-frozen/` (tag `v1.0-paper`, commit `bbef2ba`) is kept as a reference snapshot.
@@ -136,7 +136,7 @@ Each audit follows the same pipeline: train a biased model → measure the fairn
 
 ## Phase 4 - Contributor Expansion 🔄 In Progress
 
-**Status: Goal exceeded - 45 external contributors, past the original 15+ target**
+**Status: Goal exceeded - 46 external contributors, past the original 15+ target**
 
 Goal: grow to 15+ contributors with quality-controlled contributions.
 
@@ -169,6 +169,7 @@ Go deeper on measurement - fairness dashboards, interactive notebooks, and stati
 - [x] Statistical significance testing for fairness gaps
 - [x] Fairness dashboard for the benchmark harness results (interactive `results/` explorer, mirroring the Open Dataset Profiler's web/CLI split) - [benchmark.html](benchmark.html)
 - [x] Export parity: `--csv` on `faircode profile`/`compare` plus matching web Download CSV buttons, proxy-hint detection and a significance-level control on CLI, MCP and web, and a `--sample` demo dataset
+- [x] Proxy-hint depth: multiple-comparison correction, any number of held-out (already-dropped) columns per dataset in the CLI, MCP and web, and CSV provenance, with a benchmark-dashboard roll-up tab, per-audit figures and chart download
 
 ---
 

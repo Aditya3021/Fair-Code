@@ -38,8 +38,10 @@ once the maintainer decided not to track new audits as repo-requested work for n
 9 feature-request issues grounded in real CLI/web-profiler gaps instead.
 
 A fourth wave, in early October 2026, added the **Benchmark Results Dashboard** and brought the web
-profiler and CLI to export parity - 36 more issues closed (#729-#744, #755-#765, #775-#791) alongside
+profiler and CLI to export parity - 50 more issues closed (#729-#744, #755-#765, #775-#807) alongside
 five first-time contributors. See `METRICS.md`'s 2026-W40 note for the account.
+
+A fifth wave (2026-10-06) closed 14 follow-up issues (#794-#807) and welcomed one more contributor.
 
 ### Added
 - **Benchmark Results Dashboard** (`benchmark.html`, `assets/benchmark-dashboard.js`, closes #744, Phase 5's last roadmap item) - a client-side explorer for `results/results_fairness.csv`/`results_performance.csv`: filter by audit/strategy/model/protected attribute/metric, significant-only toggle, sortable columns, a bar chart for a chosen metric (fairness and performance tabs, signed metrics drawn from a centre line, #762/#776), filtered-view CSV export (#761), URL deep links (#764), a Clear-data control (#784), a Reset-filters button (by [@Yipjunwei](https://github.com/Yipjunwei), [#793](https://github.com/yakew7/Fair-Code/pull/793)), Open Graph images (by [@Abitha1861](https://github.com/Abitha1861), [#792](https://github.com/yakew7/Fair-Code/pull/792)), `aria-live`/`aria-sort` accessibility (#763, #777), a visible small-sample badge and notes column (#787, #788), and rejection of `summary.csv` roll-ups instead of mis-loading them (#775). Tested by driving the real file through a DOM stub against `results/*.csv`.
@@ -47,6 +49,9 @@ five first-time contributors. See `METRICS.md`'s 2026-W40 note for the account.
 - **`faircode profile --sample`** (closes #741) - a deterministic, zero-argument bundled demo dataset, byte-identical to the web profiler's sample button.
 - **Tunable `--max-categorical-card`/`--max-dimension-groups`** (closes #743, exposed on MCP by [@readyagentsdev](https://github.com/readyagentsdev), [#766](https://github.com/yakew7/Fair-Code/pull/766)) and **`--proxy-hints-with-a/-b`** on `compare` (closes #737, MCP `held_out_with_a/b` #782).
 - **Proxy-hint detection in the web profiler** (closes #738) - an opt-in chi-squared "Check for proxy columns" button for single datasets and for compare (#757), a held-out-column test mirroring `--proxy-hints-with` (#781), and a significance-level control (`--proxy-alpha`, MCP `alpha`, web input, #786); results now reach the downloaded HTML report, copied JSON and CSV (#758). Verified numerically against `scipy.stats.chi2_contingency`.
+- **Proxy-hint correction and held-out rows** - opt-in Bonferroni/Holm correction across all tested pairs (`--proxy-correction`, MCP `correction`, web dropdown, `p_adjusted` on each hint, closes #806); any number of held-out files per dataset, including `.xlsx` and in the compare view, through one shared `profiler-heldout.js` control (closes #801, #802, #803); `--proxy-alpha`/`--proxy-correction` without `--proxy-hints` are errors (closes #804); screen-reader announcements for proxy results (by [@DevKhizerer](https://github.com/DevKhizerer), [#809](https://github.com/yakew7/Fair-Code/pull/809), closes #808).
+- **CSV export additions** - `--csv-provenance` and a web checkbox append the dataset hash/thresholds (closes #800); the web CSV carries the reference-baseline section (closes #805); MCP `format="csv"` on `profile_dataset`/`compare_datasets` (closes #807); SPEC.md section 12 and the README document the layout and flags (closes #797, #798); a test for `compare --csv` write failures (closes #799).
+- **Benchmark dashboard** - a Roll-up summary tab for `results/summary.csv` (closes #794), the committed per-audit figure (closes #795), and chart download as SVG/PNG (closes #796).
 - **"Show N more groups" control** for dimensions past the 12-group display cap in the live profiler and drift views (closes #740), and a shareable `profiler.html?demo=compare` link (by [@Tiyatrotist](https://github.com/Tiyatrotist), [#747](https://github.com/yakew7/Fair-Code/pull/747)).
 
 ### Fixed

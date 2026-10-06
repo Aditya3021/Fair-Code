@@ -1,4 +1,5 @@
 import builtins
+import csv
 import importlib.util
 import io
 import json
@@ -1150,3 +1151,29 @@ def test_proxy_correction_flag_requires_proxy_hints_and_adds_p_adjusted(tmp_path
     assert "--proxy-correction needs --proxy-hints" in capsys.readouterr().err
     assert main(["profile", str(path), "--proxy-hints", "--proxy-correction", "bonferroni", "--json"]) == 0
     assert "p_adjusted" in json.loads(capsys.readouterr().out)["proxy_hints"][0]
+
+
+def test_csv_provenance_appends_a_section_with_the_dataset_hash(tmp_path):
+    """#800: --csv-provenance writes the same provenance --json attaches."""
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    out = tmp_path / "o.csv"
+    assert main(["profile", str(path), "--csv", str(out)]) == 0
+    assert "provenance_key" not in out.read_text(encoding="utf-8")
+    assert main(["profile", str(path), "--csv", str(out), "--csv-provenance"]) == 0
+    rows = list(csv.reader(io.StringIO(out.read_text(encoding="utf-8"))))
+    i = rows.index(["provenance_key", "provenance_value"])
+    prov = dict(rows[i + 1:])
+    assert prov["dataset_hash"].startswith("sha256:")
+    assert prov["engine"] == "python" and "params.min_share" in prov
+
+
+def test_csv_provenance_needs_csv_and_covers_compare(tmp_path, capsys):
+    path = tmp_path / "a.csv"
+    path.write_text("sex\nM\nF\nM\nF\n", encoding="utf-8")
+    assert main(["profile", str(path), "--csv-provenance"]) == 2
+    assert "--csv-provenance needs --csv" in capsys.readouterr().err
+    out = tmp_path / "c.csv"
+    assert main(["compare", str(path), str(path), "--csv", str(out), "--csv-provenance"]) == 0
+    text = out.read_text(encoding="utf-8")
+    assert "dataset_hash_a" in text and "dataset_hash_b" in text

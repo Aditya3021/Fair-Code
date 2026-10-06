@@ -797,19 +797,19 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
     assert 'id="proxyCorrectionInput"' in html
 
 
-def _run_ui_exports(csv_path, with_hints, reference=None):
+def _run_ui_exports(csv_path, with_hints, reference=None, provenance=None):
     """Execute profiler-ui.js's real buildHtmlReport/buildCsvReport (sliced out
     of the DOM-coupled file) against a real engine profile of `csv_path`."""
     src = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
     helpers = src[src.index("var GRADE_COLOR"):src.index("function render(")]
-    builders = src[src.index("function buildHtmlReport(r)"):src.index("function downloadCsvReport")]
+    builders = src[src.index("function buildHtmlReport(r)"):src.index("async function downloadCsvReport")]
     script = (
         "var DISPLAY_GROUPS=12;" + helpers +
         "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
         + builders +
         "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{}," + json.dumps({"reference": reference} if reference else {}) + ");"
         + ("r.proxy_hints=E.proxyHints(t,r.dimensions,0.9);" if with_hints else "") +
-        "process.stdout.write(JSON.stringify({html:buildHtmlReport(r),csv:buildCsvReport(r)}));"
+        "process.stdout.write(JSON.stringify({html:buildHtmlReport(r),csv:buildCsvReport(r," + json.dumps(provenance) + ")}));"
     )
     completed = subprocess.run(
         ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), str(csv_path)],
@@ -882,7 +882,7 @@ def test_web_compare_csv_and_html_match_python_and_include_proxy_hints(tmp_path)
     helpers = (src[src.index("function pct("):src.index("function wireSlot")]
                + src[src.index("function kindMismatchReason"):src.index("function driftCard")])
     builders = src[src.index("function proxyHintItems"):src.index("function compareReportBaseName")]
-    csvs = src[src.index("var csvRow = E.csvRow"):src.index("function downloadCompareCsvReport")]
+    csvs = src[src.index("var csvRow = E.csvRow"):src.index("async function downloadCompareCsvReport")]
     script = (
         "var DISPLAY_GROUPS=12;" + helpers +
         "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
@@ -1052,3 +1052,20 @@ def test_web_csv_includes_the_reference_section_like_python(tmp_path):
     py = to_csv(dict(profile(pd.read_csv(path), None, {"reference": reference})))
     assert "reference_label" in web
     assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")
+
+
+def test_web_and_python_csv_provenance_sections_are_identical(tmp_path):
+    """#800: the same provenance dict renders to the same CSV section in both
+    engines - dotted keys for nested objects, JSON text for lists, empty for null."""
+    from faircode.report import to_csv
+
+    path = _sex_race_csv(tmp_path)
+    prov = {"faircode_version": "2.3.0", "dataset_hash": None, "dataset_hash_note": "from stdin",
+            "params": {"min_share": 0.05, "cross": ["sex", "race"], "reference_flag": 0.05},
+            "overrides": {"zip": "geography"}}
+    web = _run_ui_exports(path, False, None, prov)["csv"]
+    py = to_csv(dict(profile(pd.read_csv(path))), provenance=prov)
+    assert "provenance_key,provenance_value" in web
+    assert "params.cross,\"[\"\"sex\"\", \"\"race\"\"]\"" in web
+    assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")
+    assert "provenance_key" not in _run_ui_exports(path, False)["csv"]

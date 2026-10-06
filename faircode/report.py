@@ -54,6 +54,25 @@ class _SafeCsvWriter:
         ])
 
 
+def _flatten_provenance(prov: dict, prefix: str = ""):
+    """Yield (dotted_key, text) pairs: nested dicts become params.min_share
+    style keys, lists become JSON, None becomes empty (#800)."""
+    for key, value in prov.items():
+        name = f"{prefix}{key}"
+        if isinstance(value, dict):
+            yield from _flatten_provenance(value, name + ".")
+        elif isinstance(value, (list, tuple)):
+            yield name, json.dumps(value)
+        else:
+            yield name, "" if value is None else value
+
+
+def _write_provenance_rows(writer, provenance: dict) -> None:
+    writer.writerow(["provenance_key", "provenance_value"])
+    for key, value in _flatten_provenance(provenance):
+        writer.writerow([key, value])
+
+
 def _adj_text(h) -> str:
     """", adj p=..." suffix for a hint that carries a multiple-comparison
     adjusted p-value (#806); empty for the default uncorrected hints."""
@@ -72,7 +91,7 @@ def _write_proxy_rows(writer, hints, side=None) -> None:
                         + ([h.get("p_adjusted")] if adjusted else []))
 
 
-def to_csv(result: dict) -> str:
+def to_csv(result: dict, provenance: dict | None = None) -> str:
     """Flat CSV export of a profile result: one row per group per dimension,
     every group included (not just the first DISPLAY_GROUPS shown in terminal/
     HTML output), followed by a blank line and a single-column flags table.
@@ -111,6 +130,9 @@ def to_csv(result: dict) -> str:
     if result.get("proxy_hints"):
         writer.writerow([])
         _write_proxy_rows(writer, result["proxy_hints"])
+    if provenance:
+        writer.writerow([])
+        _write_provenance_rows(writer, provenance)
     return buf.getvalue()
 
 
@@ -298,7 +320,7 @@ def compare_to_terminal(cmp: dict) -> str:
     return "\n".join(lines)
 
 
-def compare_to_csv(cmp: dict) -> str:
+def compare_to_csv(cmp: dict, provenance: dict | None = None) -> str:
     """Flat CSV export of a compare result: one row per group per dimension
     (every group, not just the first DISPLAY_GROUPS), a per-dimension drift
     summary section, and a flags section.
@@ -337,6 +359,9 @@ def compare_to_csv(cmp: dict) -> str:
         if cmp.get(key):
             writer.writerow([])
             _write_proxy_rows(writer, cmp[key], side)
+    if provenance:
+        writer.writerow([])
+        _write_provenance_rows(writer, provenance)
     return buf.getvalue()
 
 

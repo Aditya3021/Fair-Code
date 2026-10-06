@@ -964,6 +964,26 @@
   }
   function csvRow(cells) { return cells.map(csvField).join(',') + '\r\n'; }
 
+  // Provenance section for CSV exports (#800), mirroring faircode/report.py's
+  // _write_provenance_rows: nested objects become dotted keys (params.min_share),
+  // arrays become JSON text (Python's ', ' separators), null becomes empty.
+  function provenanceCsv(prov) {
+    var out = csvRow(['provenance_key', 'provenance_value']);
+    (function walk(obj, prefix) {
+      Object.keys(obj).forEach(function (k) {
+        var v = obj[k], name = prefix + k;
+        if (Array.isArray(v)) {
+          out += csvRow([name, '[' + v.map(function (x) { return JSON.stringify(x); }).join(', ') + ']']);
+        } else if (v !== null && typeof v === 'object') {
+          walk(v, name + '.');
+        } else {
+          out += csvRow([name, v === null || v === undefined ? '' : v]);
+        }
+      });
+    })(prov, '');
+    return out;
+  }
+
   // ── Flags + grade (SPEC sections 5 & 6) ────────────────────────────────
   function grade(score) {
     if (score >= 85) return 'A';
@@ -1356,7 +1376,7 @@
                               // proxyHints()'s own comment for why this is
                               // kept out of profile()/compare().
                               proxyHints: proxyHints, parseHeldOut: parseHeldOut,
-                              csvField: csvField, csvRow: csvRow,
+                              csvField: csvField, csvRow: csvRow, provenanceCsv: provenanceCsv,
                               // publicParams: resolved knobs for an export's
                               // provenance.params, matching the Python path (#490).
                               publicParams: publicParams,

@@ -829,7 +829,7 @@
   // Mirrors faircode/report.py::to_csv (issues #755, #758).
   var csvRow = E.csvRow;
 
-  function buildCsvReport(r) {
+  function buildCsvReport(r, provenance) {
     var out = csvRow(['dimension', 'kind', 'label', 'count', 'share',
       'ci_low', 'ci_high', 'under_represented', 'small_group']);
     r.dimensions.forEach(function (d) {
@@ -857,12 +857,15 @@
         out += csvRow([h.a, h.b, h.p_value, h.cramers_v].concat(adj ? [h.p_adjusted] : []));
       });
     }
+    if (provenance) out += csvRow([]) + E.provenanceCsv(provenance);
     return out;
   }
 
-  function downloadCsvReport() {
+  async function downloadCsvReport() {
     if (!currentResult) return;
-    var blob = new Blob([buildCsvReport(currentResult)], { type: 'text/csv' });
+    var withProv = document.getElementById('csvProvenanceInput').checked;
+    var provenance = withProv ? await buildProvenance() : null;
+    var blob = new Blob([buildCsvReport(currentResult, provenance)], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -913,11 +916,8 @@
     return ok;
   }
 
-  async function copyResultAsJSON() {
-    if (!currentResult) return;
-
+  async function buildProvenance() {
     var hash = await fileDigest(currentFile);
-
     var provenance = {
       faircode_version: FAIRCODE_VERSION,
       engine: 'js',
@@ -925,10 +925,14 @@
       params: E.publicParams(currentOpts),
       overrides: Object.assign({}, currentOverrides)
     };
+    if (hash.note !== null) provenance.dataset_hash_note = hash.note;
+    return provenance;
+  }
 
-    if (hash.note !== null) {
-      provenance.dataset_hash_note = hash.note;
-    }
+  async function copyResultAsJSON() {
+    if (!currentResult) return;
+
+    var provenance = await buildProvenance();
 
     var exported = Object.assign({}, currentResult, {
       provenance: provenance

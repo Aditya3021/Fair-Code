@@ -203,6 +203,7 @@
         <button class="action-btn" id="downloadHtmlBtn" type="button">⬇ Download report (HTML)</button>
         <button class="action-btn" id="copyJsonBtn" type="button">⧉ Copy as JSON</button>
         <button class="action-btn" id="downloadCsvBtn" type="button">⬇ Download CSV</button>
+        <label class="csv-provenance"><input type="checkbox" id="csvProvenanceInput"> include provenance</label>
         <button class="action-btn" id="referenceBtn" type="button">⚖ Score vs reference…</button>
         <button class="action-btn" id="referenceClearBtn" type="button" hidden>✕ Clear reference</button>
         <input type="file" id="referenceInput" accept=".csv,.tsv,.json,.xlsx,text/csv,text/tab-separated-values,text/plain,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
@@ -400,6 +401,7 @@
         <button class="action-btn" id="compareDownloadHtmlBtn" type="button">⬇ Download report (HTML)</button>
         <button class="action-btn" id="compareCopyJsonBtn" type="button">⧉ Copy as JSON</button>
         <button class="action-btn" id="compareDownloadCsvBtn" type="button">⬇ Download CSV</button>
+        <label class="csv-provenance"><input type="checkbox" id="compareCsvProvenanceInput"> include provenance</label>
       </div>
       <section class="compare-results" id="compareResults" hidden></section>
       <div class="proxy-hints-block" id="compareProxyHintsBlock" hidden>

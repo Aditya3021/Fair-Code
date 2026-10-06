@@ -655,7 +655,7 @@
   // Mirrors faircode/report.py::compare_to_csv (issue #756).
   var csvRow = E.csvRow;
 
-  function buildCompareCsvReport(cmp) {
+  function buildCompareCsvReport(cmp, provenance) {
     var out = csvRow(['dimension', 'kind_a', 'kind_b', 'label',
       'share_a', 'share_b', 'share_delta', 'status']);
     cmp.dimensions.forEach(function (cd) {
@@ -681,12 +681,15 @@
         });
       }
     });
+    if (provenance) out += csvRow([]) + E.provenanceCsv(provenance);
     return out;
   }
 
-  function downloadCompareCsvReport() {
+  async function downloadCompareCsvReport() {
     if (!currentCmp) return;
-    var blob = new Blob([buildCompareCsvReport(currentCmp)], { type: 'text/csv' });
+    var withProv = document.getElementById('compareCsvProvenanceInput').checked;
+    var provenance = withProv ? await buildCompareProvenance() : null;
+    var blob = new Blob([buildCompareCsvReport(currentCmp, provenance)], { type: 'text/csv' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -776,12 +779,9 @@
     return ok;
   }
 
-  async function copyCompareResultAsJSON() {
-    if (!currentCmp) return;
-
+  async function buildCompareProvenance() {
     var hashA = await fileDigest(slot.A && slot.A.file);
     var hashB = await fileDigest(slot.B && slot.B.file);
-
     var provenance = {
       faircode_version: FAIRCODE_VERSION,
       engine: 'js',
@@ -792,6 +792,13 @@
     };
     if (hashA.note !== null) provenance.dataset_hash_a_note = hashA.note;
     if (hashB.note !== null) provenance.dataset_hash_b_note = hashB.note;
+    return provenance;
+  }
+
+  async function copyCompareResultAsJSON() {
+    if (!currentCmp) return;
+
+    var provenance = await buildCompareProvenance();
 
     var exported = Object.assign({}, currentCmp, { provenance: provenance });
     var text = JSON.stringify(exported, null, 2);

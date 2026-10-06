@@ -453,3 +453,10 @@
   .score-card { flex-direction: column; text-align: center; }
   .bar-label { flex-basis: 92px; }
 }
+
+/* ── Held-out rows (issues #801-#803) ── */
+.heldout-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 8px 0; font-size: 13px; }
+.heldout-remove { background: none; border: 1px solid var(--border2); border-radius: 4px; color: var(--muted);
+  cursor: pointer; padding: 2px 8px; }
+.heldout-remove:hover { border-color: var(--accent); color: var(--accent); }
+.proxy-heldout .proxy-hints-btn { margin: 4px 0 10px; }

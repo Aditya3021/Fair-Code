@@ -870,6 +870,24 @@
     throw new Error("correction must be 'bonferroni' or 'holm', got " + method);
   }
 
+  // Build a held-out map from several uploaded files (#801, #802, #803).
+  // specs = [{name, column, data}] where `data` is text (csv/tsv/json) or an
+  // ArrayBuffer (.xlsx, first sheet - the same reader the main dropzone uses).
+  // Every spec goes through parseHeldOut, with the running map as `already`,
+  // so two specs naming the same column are rejected like the CLI's repeated
+  // --proxy-hints-with.
+  async function buildHeldOut(specs, table) {
+    var out = {};
+    for (var i = 0; i < specs.length; i++) {
+      var spec = specs[i], heldTable;
+      if (/\.xlsx$/i.test(spec.name)) heldTable = (await parseXLSX(spec.data)).table;
+      else if (/\.json$/i.test(spec.name)) heldTable = parseJSON(spec.data);
+      else heldTable = parseCSV(spec.data);
+      out[spec.column] = parseHeldOut(heldTable, spec.column, table, out);
+    }
+    return out;
+  }
+
   function proxyHints(table, dimensions, alpha, heldOut, multiCorrection) {
     if (alpha === undefined) alpha = PROXY_ALPHA;
     if (!(alpha > 0 && alpha <= 1)) throw new Error('alpha must be in (0, 1], got ' + alpha);
@@ -1375,7 +1393,7 @@
                               // Opt-in, informational only (issue #738) - see
                               // proxyHints()'s own comment for why this is
                               // kept out of profile()/compare().
-                              proxyHints: proxyHints, parseHeldOut: parseHeldOut,
+                              proxyHints: proxyHints, parseHeldOut: parseHeldOut, buildHeldOut: buildHeldOut,
                               csvField: csvField, csvRow: csvRow, provenanceCsv: provenanceCsv,
                               // publicParams: resolved knobs for an export's
                               // provenance.params, matching the Python path (#490).

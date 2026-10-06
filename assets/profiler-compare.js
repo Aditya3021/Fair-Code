@@ -31,6 +31,10 @@
   var downloadCsvBtn = document.getElementById('compareDownloadCsvBtn');
   var proxyBlockEl = document.getElementById('compareProxyHintsBlock');
   var proxyBtn = document.getElementById('compareProxyHintsBtn');
+  var heldOutA = window.FairCodeHeldOut.init(document.getElementById('compareHeldOutRowsA'),
+    document.getElementById('compareHeldOutAddA'), 'dataset A held-out');
+  var heldOutB = window.FairCodeHeldOut.init(document.getElementById('compareHeldOutRowsB'),
+    document.getElementById('compareHeldOutAddB'), 'dataset B held-out');
   var proxyResultsEl = document.getElementById('compareProxyHintsResults');
   var mappingBlock = document.getElementById('compareMappingBlock');
   var mappingList = document.getElementById('compareMappingList');
@@ -717,13 +721,22 @@
     return a;
   }
 
-  function renderCompareProxyHints() {
+  async function renderCompareProxyHints() {
     if (!currentCmp || !currentProfiles) return;
     var alpha = readProxyAlpha(document.getElementById('compareProxyAlphaInput'), proxyResultsEl);
     if (alpha === null) return;
     var correction = document.getElementById('compareProxyCorrectionInput').value || null;
-    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, null, correction);
-    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions, alpha, null, correction);
+    var heldA = null, heldB = null;
+    try {
+      var specsA = await heldOutA.collect(), specsB = await heldOutB.collect();
+      if (specsA.length) heldA = await E.buildHeldOut(specsA, slot.A.table);
+      if (specsB.length) heldB = await E.buildHeldOut(specsB, slot.B.table);
+    } catch (err) {
+      proxyResultsEl.innerHTML = '<p class="profiler-error">' + esc(err.message) + '</p>';
+      return;
+    }
+    currentCmp.proxy_hints_a = E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, heldA, correction);
+    currentCmp.proxy_hints_b = E.proxyHints(slot.B.table, currentProfiles.B.dimensions, alpha, heldB, correction);
     proxyResultsEl.innerHTML = [['proxy_hints_a', 'A'], ['proxy_hints_b', 'B']].map(function (k) {
       var hints = currentCmp[k[0]];
       return '<h4 class="proxy-hint-side">Dataset ' + k[1] + '</h4>' + (hints.length

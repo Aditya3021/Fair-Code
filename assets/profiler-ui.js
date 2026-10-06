@@ -33,6 +33,8 @@
   var referenceInput = document.getElementById('referenceInput');
   var referenceStatus = document.getElementById('referenceStatus');
   var proxyHintsBtn = document.getElementById('proxyHintsBtn');
+  var heldOutControl = window.FairCodeHeldOut.init(
+    document.getElementById('heldOutRows'), document.getElementById('heldOutAddBtn'), 'held-out');
   var thresholdControls = document.getElementById('thresholdControls');
   var thresholdInputs = thresholdControls ?
     Array.prototype.slice.call(thresholdControls.querySelectorAll('[data-opt]')) : [];
@@ -425,21 +427,14 @@
     host.innerHTML = '';
     var alpha = readProxyAlpha(document.getElementById('proxyAlphaInput'), host);
     if (alpha === null) return;
-    // Optional held-out column (#781), mirroring --proxy-hints-with PATH=COLUMN.
-    var heldFile = document.getElementById('heldOutFileInput').files[0];
-    var heldCol = document.getElementById('heldOutColumnInput').value.trim();
+    // Optional held-out columns (#781, #801, #802), mirroring --proxy-hints-with.
     var heldOut = null;
-    if (heldFile || heldCol) {
-      try {
-        if (!heldFile || !heldCol) throw new Error('a held-out test needs both a file and a column name');
-        var heldText = await heldFile.text();
-        var heldTable = /\.json$/i.test(heldFile.name) ? E.parseJSON(heldText) : E.parseCSV(heldText);
-        heldOut = {};
-        heldOut[heldCol] = E.parseHeldOut(heldTable, heldCol, currentTable);
-      } catch (err) {
-        host.innerHTML = '<p class="profiler-error">' + esc(err.message) + '</p>';
-        return;
-      }
+    try {
+      var specs = await heldOutControl.collect();
+      if (specs.length) heldOut = await E.buildHeldOut(specs, currentTable);
+    } catch (err) {
+      host.innerHTML = '<p class="profiler-error">' + esc(err.message) + '</p>';
+      return;
     }
     var hints = E.proxyHints(currentTable, currentResult.dimensions, alpha, heldOut,
       document.getElementById('proxyCorrectionInput').value || null);

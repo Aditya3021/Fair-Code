@@ -931,7 +931,7 @@ def test_compare_view_download_csv_and_proxy_controls_are_wired():
             assert f"getElementById('{element_id}')" in js, element_id
     assert "downloadCsvBtn.addEventListener('click', downloadCompareCsvReport)" in js
     assert "proxyBtn.addEventListener('click', renderCompareProxyHints)" in js
-    assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, null, correction)" in js
+    assert "E.proxyHints(slot.A.table, currentProfiles.A.dimensions, alpha, heldA, correction)" in js
     assert 'id="compareProxyCorrectionInput"' in html
 
 
@@ -1069,3 +1069,97 @@ def test_web_and_python_csv_provenance_sections_are_identical(tmp_path):
     assert "params.cross,\"[\"\"sex\"\", \"\"race\"\"]\"" in web
     assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")
     assert "provenance_key" not in _run_ui_exports(path, False)["csv"]
+
+
+def test_held_out_rows_control_is_wired_into_profile_and_compare_views():
+    """#801-#803: rows (any number, per dataset in compare) replace the old
+    single file+column inputs; profiler.html loads the shared control first."""
+    html = (REPO_ROOT / "profiler.html").read_text(encoding="utf-8")
+    for element_id in ("heldOutRows", "heldOutAddBtn", "compareHeldOutRowsA",
+                       "compareHeldOutAddA", "compareHeldOutRowsB", "compareHeldOutAddB"):
+        assert f'id="{element_id}"' in html, element_id
+    assert 'id="heldOutFileInput"' not in html
+    assert html.index("profiler-heldout.js") < html.index("profiler-ui.js")
+    assert html.index("profiler-heldout.js") < html.index("profiler-compare.js")
+    ui = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
+    cmp_js = (REPO_ROOT / "assets" / "profiler-compare.js").read_text(encoding="utf-8")
+    assert "E.buildHeldOut(specs, currentTable)" in ui
+    assert "E.buildHeldOut(specsA, slot.A.table)" in cmp_js and "E.buildHeldOut(specsB, slot.B.table)" in cmp_js
+    control = (REPO_ROOT / "assets" / "profiler-heldout.js").read_text(encoding="utf-8")
+    assert ".xlsx" in control and "file.arrayBuffer()" in control
+
+
+def test_build_held_out_handles_several_columns_formats_and_collisions(tmp_path):
+    """#801/#802: buildHeldOut() merges several files (csv, json, and .xlsx via the
+    first-sheet reader - stubbed here so no CDN is needed) into one map, and
+    rejects a column named twice like the CLI's repeated --proxy-hints-with."""
+    main_csv = tmp_path / "main.csv"
+    main_csv.write_text("zip\n111\n111\n222\n222\n", encoding="utf-8")
+    script = (
+        "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
+        "globalThis.XLSX={read:function(){return {SheetNames:['S'],Sheets:{S:{}}}},"
+        "utils:{sheet_to_json:function(){return [{age:'old'},{age:'old'},{age:'young'},{age:'young'}]}}};"
+        "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var out={};"
+        "(async function(){"
+        "out.map=await E.buildHeldOut(["
+        "{name:'a.csv',column:'race',data:'race\\nA\\nA\\nB\\nB\\n'},"
+        "{name:'b.json',column:'sex',data:JSON.stringify([{sex:'m'},{sex:'f'},{sex:'m'},{sex:'f'}])},"
+        "{name:'c.xlsx',column:'age',data:new ArrayBuffer(1)}],t);"
+        "try{await E.buildHeldOut([{name:'a.csv',column:'race',data:'race\\nA\\nA\\nB\\nB\\n'},"
+        "{name:'z.csv',column:'race',data:'race\\nA\\nA\\nB\\nB\\n'}],t)}catch(e){out.dup=e.message}"
+        "process.stdout.write(JSON.stringify(out));})();"
+    )
+    done = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), str(main_csv)],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    out = json.loads(done.stdout)
+    assert out["map"] == {"race": ["A", "A", "B", "B"], "sex": ["m", "f", "m", "f"],
+                          "age": ["old", "old", "young", "young"]}
+    assert "already supplied" in out["dup"]
+
+
+def test_held_out_control_adds_rows_collects_specs_and_validates():
+    """Drives the real assets/profiler-heldout.js through a minimal DOM stub:
+    rows can be added/removed, filled rows become specs ({name, column, data},
+    xlsx as an ArrayBuffer), empty rows are skipped, half-filled rows throw."""
+    script = r"""
+    function El(tag){this.tag=tag;this.children=[];this.listeners={};this.value='';this.files=[];
+      this.attrs={};}
+    El.prototype.appendChild=function(c){this.children.push(c);c.parent=this;return c;};
+    El.prototype.removeChild=function(c){this.children.splice(this.children.indexOf(c),1);};
+    El.prototype.setAttribute=function(k,v){this.attrs[k]=v;};
+    El.prototype.addEventListener=function(t,f){(this.listeners[t]=this.listeners[t]||[]).push(f);};
+    El.prototype.click=function(){(this.listeners.click||[]).forEach(function(f){f();});};
+    El.prototype.querySelectorAll=function(sel){var out=[];(function walk(n){n.children.forEach(function(c){
+      if(c.tag===sel)out.push(c);walk(c);});})(this);return out;};
+    global.document={createElement:function(t){return new El(t);}};
+    global.window=global;
+    require(process.argv[1]);
+    var container=new El('div'),addBtn=new El('button');
+    var ctl=FairCodeHeldOut.init(container,addBtn,'held-out');
+    (async function(){
+      var out={rows_initial:container.children.length};
+      addBtn.click();addBtn.click();out.rows_after_add=container.children.length;
+      function inputs(i){return container.children[i].querySelectorAll('input');}
+      function fileOf(name,text){return {name:name,text:async function(){return text;},
+        arrayBuffer:async function(){return 'AB:'+name;}};}
+      inputs(0)[0].files=[fileOf('a.csv','race\nA\n')];inputs(0)[1].value=' race ';
+      inputs(2)[0].files=[fileOf('b.xlsx','')];inputs(2)[1].value='age';
+      out.specs=await ctl.collect();   // middle row empty -> skipped
+      inputs(1)[1].value='orphan';
+      try{await ctl.collect();}catch(e){out.half=e.message;}
+      inputs(1)[1].value='';
+      container.children[2].children[2].click();       // remove row 3
+      out.rows_after_remove=container.children.length;
+      process.stdout.write(JSON.stringify(out));
+    })();
+    """
+    done = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-heldout.js")],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    out = json.loads(done.stdout)
+    assert out["rows_initial"] == 1 and out["rows_after_add"] == 3
+    assert out["specs"] == [{"name": "a.csv", "column": "race", "data": "race\nA\n"},
+                            {"name": "b.xlsx", "column": "age", "data": "AB:b.xlsx"}]
+    assert "needs both a file and a column name" in out["half"]
+    assert out["rows_after_remove"] == 2

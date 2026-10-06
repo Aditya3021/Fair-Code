@@ -302,14 +302,15 @@
           </select>
         </label>
         <details class="proxy-heldout">
-          <summary>Test a column you already dropped (<code>--proxy-hints-with</code>)</summary>
+          <summary>Test columns you already dropped (<code>--proxy-hints-with</code>)</summary>
           <p class="section-note">
-            Upload the original file that still has the dropped protected attribute (CSV, TSV or JSON,
-            same rows in the same order as this dataset), and name the column. It is tested against
-            every detected dimension, so "we removed the column" cannot hide a proxy.
+            Upload the original file that still has the dropped protected attribute (CSV, TSV, JSON or
+            Excel, same rows in the same order as this dataset), and name the column. Add a row per
+            dropped column. Each is tested against every detected dimension, so "we removed the
+            column" cannot hide a proxy.
           </p>
-          <label>File <input type="file" id="heldOutFileInput" accept=".csv,.tsv,.json,text/csv,application/json"></label>
-          <label>Column <input type="text" class="threshold-input" id="heldOutColumnInput" placeholder="e.g. race" autocomplete="off"></label>
+          <div id="heldOutRows"></div>
+          <button type="button" class="proxy-hints-btn" id="heldOutAddBtn">+ Add another column</button>
         </details>
         <button type="button" class="proxy-hints-btn" id="proxyHintsBtn">Check for proxy columns</button>
         <div id="proxyHintsResults" aria-live="polite"></div>
@@ -420,6 +421,19 @@
             <option value="holm">Holm</option>
           </select>
         </label>
+        <details class="proxy-heldout">
+          <summary>Test columns you already dropped (<code>--proxy-hints-with-a/-b</code>)</summary>
+          <p class="section-note">
+            Per dataset: a file that still has the dropped attribute (rows aligned 1:1 with that
+            dataset) and the column name. Add a row per dropped column.
+          </p>
+          <h4 class="proxy-hint-side">Dataset A</h4>
+          <div id="compareHeldOutRowsA"></div>
+          <button type="button" class="proxy-hints-btn" id="compareHeldOutAddA">+ Add another column (A)</button>
+          <h4 class="proxy-hint-side">Dataset B</h4>
+          <div id="compareHeldOutRowsB"></div>
+          <button type="button" class="proxy-hints-btn" id="compareHeldOutAddB">+ Add another column (B)</button>
+        </details>
         <button type="button" class="proxy-hints-btn" id="compareProxyHintsBtn">Check for proxy columns</button>
         <div id="compareProxyHintsResults" aria-live="polite"></div>
       </div>
@@ -435,6 +449,7 @@
   </main>
 
   <script src="assets/profiler-engine.js"></script>
+  <script src="assets/profiler-heldout.js"></script>
   <script src="assets/profiler-ui.js"></script>
   <script src="assets/profiler-compare.js"></script>
   <script>

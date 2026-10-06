@@ -797,7 +797,7 @@ def test_proxy_hints_ui_wiring_present_in_profiler_html_and_ui_js():
     assert 'id="proxyCorrectionInput"' in html
 
 
-def _run_ui_exports(csv_path, with_hints):
+def _run_ui_exports(csv_path, with_hints, reference=None):
     """Execute profiler-ui.js's real buildHtmlReport/buildCsvReport (sliced out
     of the DOM-coupled file) against a real engine profile of `csv_path`."""
     src = (REPO_ROOT / "assets" / "profiler-ui.js").read_text(encoding="utf-8")
@@ -807,7 +807,7 @@ def _run_ui_exports(csv_path, with_hints):
         "var DISPLAY_GROUPS=12;" + helpers +
         "require(process.argv[1]);var fs=require('fs');var E=globalThis.FairCodeProfiler;"
         + builders +
-        "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{},{});"
+        "var t=E.parseCSV(fs.readFileSync(process.argv[2],'utf-8'));var r=E.profile(t,{}," + json.dumps({"reference": reference} if reference else {}) + ");"
         + ("r.proxy_hints=E.proxyHints(t,r.dimensions,0.9);" if with_hints else "") +
         "process.stdout.write(JSON.stringify({html:buildHtmlReport(r),csv:buildCsvReport(r)}));"
     )
@@ -1037,3 +1037,18 @@ def test_python_js_proxy_correction_parity(tmp_path):
             assert py_map[k] == pytest.approx(js_map[k], rel=1e-6)
     assert "correction must be" in js["bad"]
     assert adjust_p_values([0.01, 0.04, 0.03], "holm") == pytest.approx([0.03, 0.06, 0.06])
+
+
+def test_web_csv_includes_the_reference_section_like_python(tmp_path):
+    """#805: after scoring against a reference baseline, the browser CSV carries
+    the same expected/actual/delta/deviation section as faircode's to_csv()."""
+    from faircode.report import to_csv
+
+    rows = ["sex"] + ["male"] * 45 + ["female"] * 15
+    path = tmp_path / "ref.csv"
+    path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    reference = {"sex": {"male": 0.5, "female": 0.5}}
+    web = _run_ui_exports(path, False, reference)["csv"]
+    py = to_csv(dict(profile(pd.read_csv(path), None, {"reference": reference})))
+    assert "reference_label" in web
+    assert web.replace("\r\n", "\n") == py.replace("\r\n", "\n")

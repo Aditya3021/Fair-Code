@@ -840,6 +840,16 @@
     });
     out += csvRow([]) + csvRow(['flag']);
     r.flags.forEach(function (f) { out += csvRow([f]); });
+    var refDims = r.dimensions.filter(function (d) { return d.reference; });
+    if (refDims.length) {
+      out += csvRow([]) + csvRow(['dimension', 'reference_label', 'expected', 'actual', 'delta',
+        'reference_deviation']);
+      refDims.forEach(function (d) {
+        d.reference.groups.forEach(function (g) {
+          out += csvRow([d.name, g.label, g.expected, g.actual, g.delta, d.reference.deviation]);
+        });
+      });
+    }
     if (r.proxy_hints && r.proxy_hints.length) {
       var adj = r.proxy_hints.some(function (h) { return h.p_adjusted !== undefined; });
       out += csvRow([]) + csvRow(['proxy_hint_a', 'proxy_hint_b', 'p_value', 'cramers_v'].concat(adj ? ['p_adjusted'] : []));

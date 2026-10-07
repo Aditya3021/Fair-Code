@@ -489,12 +489,19 @@
   }
 
   // ── Age handling (SPEC section 2) ──────────────────────────────────────
+  // Match the numeric grammar used by pandas when it infers an otherwise
+  // numeric age column, including scientific notation. Non-finite numeric
+  // tokens (inf/nan) are treated as missing rather than categorical values.
+  var AGE_NUMERIC_RE = /[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/;
+  var AGE_NONFINITE_RE = /^[+-]?(?:inf(?:inity)?|nan)$/i;
+
   function ageToNumeric(value) {
     if (value === null || value === undefined) return null;
     var numeric;
     if (typeof value === 'number') numeric = value;
     else {
-      var m = String(value).match(/[+-]?\d+(?:\.\d+)?/);
+      var text = String(value);
+      var m = text.match(AGE_NUMERIC_RE);
       if (!m) return null;
       numeric = parseFloat(m[0]);
     }
@@ -520,7 +527,9 @@
   // this profiler's prior behavior for range-invalid numeric sentinels.
   function isCategoricalAgeSentinel(value) {
     if (value === null || value === undefined || typeof value === 'number') return false;
-    return !/[+-]?\d+(?:\.\d+)?/.test(String(value));
+    var text = String(value).trim();
+    if (AGE_NONFINITE_RE.test(text)) return false;
+    return !AGE_NUMERIC_RE.test(text);
   }
 
   var AGE_BAND_LABELS = Object.create(null);

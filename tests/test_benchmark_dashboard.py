@@ -108,6 +108,29 @@ global.document = {
         set: function (v) { node._value = v; },
       });
     }
+    if (tag === 'canvas') {
+      var ctx = {
+        _calls: [],
+        scale: function (sx, sy) { ctx._calls.push(['scale', sx, sy]); },
+        drawImage: function (img, x, y) { ctx._calls.push(['drawImage', img, x, y]); },
+      };
+      node.getContext = function (kind) {
+        node._contextKind = kind;
+        return ctx;
+      };
+      node.toBlob = function (cb, mimeType) {
+        node._toBlobMimeType = mimeType;
+        var b = new global.Blob(['fake-png-bytes'], { type: mimeType });
+        cb(b);
+      };
+      node._ctx = ctx;
+      global.__lastCanvas = node;
+    }
+    if (tag === 'a') {
+      node.click = function () {
+        global.__lastDownloadName = node.download;
+      };
+    }
     return node;
   },
 };
@@ -121,6 +144,11 @@ function makeTabButton(tab, selected) {
 global.__tabButtons = [makeTabButton('fairness', true), makeTabButton('performance', false),
   makeTabButton('summary', false)];
 
+var _origToLocaleString = Number.prototype.toLocaleString;
+Number.prototype.toLocaleString = function (locales, options) {
+  return _origToLocaleString.call(this, locales || 'en-US', options);
+};
+
 var fetchMap = {
   'results/results_fairness.csv': fs.readFileSync(path.join(REPO, 'results', 'results_fairness.csv'), 'utf-8'),
   'results/results_performance.csv': fs.readFileSync(path.join(REPO, 'results', 'results_performance.csv'), 'utf-8'),
@@ -130,7 +158,36 @@ global.fetch = function (url) {
   return Promise.resolve({ ok: true, text: function () { return Promise.resolve(fetchMap[url]); } });
 };
 var lastBlob = null;
-global.Blob = function (parts) { lastBlob = parts.join(''); };
+var lastBlobType = null;
+global.Blob = function (parts, opts) {
+  lastBlob = parts.join('');
+  lastBlobType = (opts && opts.type) || null;
+};
+global.Image = function () {
+  var self = {
+    width: 0,
+    height: 0,
+    _src: '',
+    onload: null,
+  };
+  Object.defineProperty(self, 'src', {
+    get: function () { return self._src; },
+    set: function (v) {
+      self._src = v;
+      try {
+        var decoded = decodeURIComponent(v.split(',')[1] || '');
+        var wm = decoded.match(/width="(\d+)"/);
+        var hm = decoded.match(/height="(\d+)"/);
+        if (wm) self.width = parseInt(wm[1], 10);
+        if (hm) self.height = parseInt(hm[1], 10);
+      } catch (e) {}
+      if (typeof self.onload === 'function') {
+        self.onload();
+      }
+    },
+  });
+  return self;
+};
 global.URL = { createObjectURL: function () { return 'blob:x'; }, revokeObjectURL: function () {} };
 global.document.body = { appendChild: function () {}, removeChild: function () {} };
 global.window = global;
@@ -203,6 +260,20 @@ var results = {};
   lastBlob = null;
   elements.benchChartSvgBtn.click();
   results.svg = lastBlob;
+
+  // #812: PNG chart export rasterises the SVG via canvas
+  global.__lastDownloadName = null;
+  global.__lastCanvas = null;
+  lastBlobType = null;
+  elements.benchChartPngBtn.click();
+  results.png_download_name = global.__lastDownloadName;
+  results.png_blob_type = lastBlobType;
+  results.canvas_context_kind = global.__lastCanvas ? global.__lastCanvas._contextKind : null;
+  results.canvas_to_blob_type = global.__lastCanvas ? global.__lastCanvas._toBlobMimeType : null;
+  results.canvas_width = global.__lastCanvas ? global.__lastCanvas.width : null;
+  results.canvas_height = global.__lastCanvas ? global.__lastCanvas.height : null;
+  results.canvas_calls = global.__lastCanvas && global.__lastCanvas._ctx ? global.__lastCanvas._ctx._calls : [];
+
   results.figure_hidden_without_audit = elements.benchFigureBlock.hidden;
   results.signed_chart = elements.benchChart.innerHTML.indexOf('bar-track signed') !== -1;
   results.neg_bars = (elements.benchChart.innerHTML.match(/bar-fill [a-z]+ neg/g) || []).length;
@@ -321,6 +392,16 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert r["svg"].count("<rect x=") >= 1 and "demographic_parity_diff" in r["svg"]
     assert 'stroke="#bdb59c"' in r["svg"]  # signed metric -> centre line
     assert r["figure_hidden_without_audit"] is True
+
+    # #812: the chart also downloads as a 2x rasterised PNG blob via canvas.
+    assert r["png_download_name"] == "benchmark-fairness-chart.png"
+    assert r["png_blob_type"] == "image/png"
+    assert r["canvas_context_kind"] == "2d"
+    assert r["canvas_to_blob_type"] == "image/png"
+    assert r["canvas_width"] == 910 * 2
+    assert r["canvas_height"] > 0
+    assert ["scale", 2, 2] in r["canvas_calls"]
+    assert any(call[0] == "drawImage" for call in r["canvas_calls"])
 
     # #794: the roll-up summary tab lists summary.csv's rows with "k / n" model counts.
     summary = pd.read_csv(REPO_ROOT / "results" / "summary.csv")

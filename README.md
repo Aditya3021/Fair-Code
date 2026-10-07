@@ -1036,16 +1036,12 @@ Point a client at it with:
 ```
 
 `profile_dataset`/`compare_datasets` return the same shape `--json` does, provenance block
-included by default. Both tools, as well as `proxy_hints`, support optional parameters for
-reporting and proxy adjustments:
+included by default. Key parameters:
+- **`format="csv"`** on `profile_dataset` and `compare_datasets` returns `{"csv": "<text>"}`, emitting the same flat spreadsheet table as `faircode profile/compare --csv` ([SPEC.md section 12](faircode/SPEC.md#12-csv-export)).
+- **`alpha`** (default `0.05`, in `(0, 1]`) and **`correction="bonferroni"|"holm"`** on `proxy_hints` and `compare_datasets` (`proxy_hints=true`) control significance filtering and multiple-testing adjustment.
+- **`held_out_with_a` / `held_out_with_b`** on `compare_datasets` (with `proxy_hints=true`) mirror `proxy_hints`'s **`held_out_with`**, accepting `"PATH=COLUMN"` specs for attributes dropped prior to profiling.
 
-- `format="csv"`: on `profile_dataset` and `compare_datasets`, returns `{"csv": "..."}` with the flat table matching the CLI's `--csv` output (see [faircode/SPEC.md](faircode/SPEC.md#12-csv-export)).
-- `held_out_with_a` / `held_out_with_b`: on `compare_datasets` (requires `proxy_hints=true`), lists of `"PATH=COLUMN"` specs testing dropped attributes against dataset A or B (mirroring `--proxy-hints-with-a`/`-b`).
-- `alpha`: on `proxy_hints` and `compare_datasets`, sets the chi-squared significance cutoff (default `0.05`, in `(0, 1]`, mirroring `--proxy-alpha`).
-- `correction="bonferroni"` / `correction="holm"`: on `proxy_hints` and `compare_datasets`, applies multiple-comparison adjustment across tested pairs and attaches `p_adjusted` (mirroring `--proxy-correction`).
-
-See [faircode/SPEC.md](faircode/SPEC.md#11-mcp-tools) for the full tool contract.
-
+See [faircode/SPEC.md](faircode/SPEC.md#11-mcp-tools) for the full tool contract and parameter reference.
 
 The engine is domain-agnostic - it works on any tabular CSV (health, hiring, lending, justice),
 auto-detecting demographic columns (sex, race, age, geography) by name. Beyond the single-dataset

@@ -108,6 +108,29 @@ global.document = {
         set: function (v) { node._value = v; },
       });
     }
+    if (tag === 'canvas') {
+      var ctx = {
+        _calls: [],
+        scale: function (sx, sy) { ctx._calls.push(['scale', sx, sy]); },
+        drawImage: function (img, x, y) { ctx._calls.push(['drawImage', img, x, y]); },
+      };
+      node.getContext = function (kind) {
+        node._contextKind = kind;
+        return ctx;
+      };
+      node.toBlob = function (cb, mimeType) {
+        node._toBlobMimeType = mimeType;
+        var b = new global.Blob(['fake-png-bytes'], { type: mimeType });
+        cb(b);
+      };
+      node._ctx = ctx;
+      global.__lastCanvas = node;
+    }
+    if (tag === 'a') {
+      node.click = function () {
+        global.__lastDownloadName = node.download;
+      };
+    }
     return node;
   },
 };
@@ -121,16 +144,58 @@ function makeTabButton(tab, selected) {
 global.__tabButtons = [makeTabButton('fairness', true), makeTabButton('performance', false),
   makeTabButton('summary', false)];
 
+var _origToLocaleString = Number.prototype.toLocaleString;
+Number.prototype.toLocaleString = function (locales, options) {
+  return _origToLocaleString.call(this, locales || 'en-US', options);
+};
+
 var fetchMap = {
   'results/results_fairness.csv': fs.readFileSync(path.join(REPO, 'results', 'results_fairness.csv'), 'utf-8'),
   'results/results_performance.csv': fs.readFileSync(path.join(REPO, 'results', 'results_performance.csv'), 'utf-8'),
   'results/summary.csv': fs.readFileSync(path.join(REPO, 'results', 'summary.csv'), 'utf-8'),
 };
+var blockUrl = process.argv[3] || '';
 global.fetch = function (url) {
+  if (blockUrl && url.indexOf(blockUrl) !== -1) {
+    return Promise.resolve({
+      ok: false,
+      status: 404,
+      text: function () { return Promise.reject(new Error('HTTP 404')); }
+    });
+  }
   return Promise.resolve({ ok: true, text: function () { return Promise.resolve(fetchMap[url]); } });
 };
 var lastBlob = null;
-global.Blob = function (parts) { lastBlob = parts.join(''); };
+var lastBlobType = null;
+global.Blob = function (parts, opts) {
+  lastBlob = parts.join('');
+  lastBlobType = (opts && opts.type) || null;
+};
+global.Image = function () {
+  var self = {
+    width: 0,
+    height: 0,
+    _src: '',
+    onload: null,
+  };
+  Object.defineProperty(self, 'src', {
+    get: function () { return self._src; },
+    set: function (v) {
+      self._src = v;
+      try {
+        var decoded = decodeURIComponent(v.split(',')[1] || '');
+        var wm = decoded.match(/width="(\d+)"/);
+        var hm = decoded.match(/height="(\d+)"/);
+        if (wm) self.width = parseInt(wm[1], 10);
+        if (hm) self.height = parseInt(hm[1], 10);
+      } catch (e) {}
+      if (typeof self.onload === 'function') {
+        self.onload();
+      }
+    },
+  });
+  return self;
+};
 global.URL = { createObjectURL: function () { return 'blob:x'; }, revokeObjectURL: function () {} };
 global.document.body = { appendChild: function () {}, removeChild: function () {} };
 global.window = global;
@@ -150,6 +215,14 @@ var results = {};
   results.last_url_after_first_render = global.__lastUrl;
   results.results_hidden_after_load = elements.benchResults.hidden;
   results.summary_unfiltered = elements.benchSummary.textContent;
+  results.status_after_load = elements.benchStatus.textContent;
+  results.error_after_load = elements.benchError.textContent;
+  results.error_hidden_after_load = elements.benchError.hidden;
+
+  if (elements.benchResults.hidden) {
+    process.stdout.write(JSON.stringify(results));
+    return;
+  }
 
   var auditSelect = createdSelects['audit'];
   results.audit_select_found = !!auditSelect;
@@ -203,6 +276,20 @@ var results = {};
   lastBlob = null;
   elements.benchChartSvgBtn.click();
   results.svg = lastBlob;
+
+  // #812: PNG chart export rasterises the SVG via canvas
+  global.__lastDownloadName = null;
+  global.__lastCanvas = null;
+  lastBlobType = null;
+  elements.benchChartPngBtn.click();
+  results.png_download_name = global.__lastDownloadName;
+  results.png_blob_type = lastBlobType;
+  results.canvas_context_kind = global.__lastCanvas ? global.__lastCanvas._contextKind : null;
+  results.canvas_to_blob_type = global.__lastCanvas ? global.__lastCanvas._toBlobMimeType : null;
+  results.canvas_width = global.__lastCanvas ? global.__lastCanvas.width : null;
+  results.canvas_height = global.__lastCanvas ? global.__lastCanvas.height : null;
+  results.canvas_calls = global.__lastCanvas && global.__lastCanvas._ctx ? global.__lastCanvas._ctx._calls : [];
+
   results.figure_hidden_without_audit = elements.benchFigureBlock.hidden;
   results.signed_chart = elements.benchChart.innerHTML.indexOf('bar-track signed') !== -1;
   results.neg_bars = (elements.benchChart.innerHTML.match(/bar-fill [a-z]+ neg/g) || []).length;
@@ -252,9 +339,9 @@ var results = {};
 """
 
 
-def _run_dom_stub(search=""):
+def _run_dom_stub(search="", block_url=""):
     completed = subprocess.run(
-        ["node", "-e", _DOM_STUB, str(REPO_ROOT), search],
+        ["node", "-e", _DOM_STUB, str(REPO_ROOT), search, block_url],
         capture_output=True, text=True, encoding="utf-8", check=True,
     )
     return json.loads(completed.stdout)
@@ -321,6 +408,16 @@ def test_benchmark_dashboard_loads_filters_sorts_and_switches_tabs():
     assert r["svg"].count("<rect x=") >= 1 and "demographic_parity_diff" in r["svg"]
     assert 'stroke="#bdb59c"' in r["svg"]  # signed metric -> centre line
     assert r["figure_hidden_without_audit"] is True
+
+    # #812: the chart also downloads as a 2x rasterised PNG blob via canvas.
+    assert r["png_download_name"] == "benchmark-fairness-chart.png"
+    assert r["png_blob_type"] == "image/png"
+    assert r["canvas_context_kind"] == "2d"
+    assert r["canvas_to_blob_type"] == "image/png"
+    assert r["canvas_width"] == 910 * 2
+    assert r["canvas_height"] > 0
+    assert ["scale", 2, 2] in r["canvas_calls"]
+    assert any(call[0] == "drawImage" for call in r["canvas_calls"])
 
     # #794: the roll-up summary tab lists summary.csv's rows with "k / n" model counts.
     summary = pd.read_csv(REPO_ROOT / "results" / "summary.csv")
@@ -417,3 +514,28 @@ def test_benchmark_dashboard_detect_kind_tells_the_three_result_files_apart():
     out = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True,
                                     encoding="utf-8", check=True).stdout)
     assert out == ["fairness", "performance", "summary"]
+
+
+def test_benchmark_dashboard_bundled_load_partial_failure():
+    """#817: if one bundled CSV fails to load (e.g. 404), loadBundled still
+    loads whichever files succeeded and reports the failed ones in the status line,
+    rather than failing completely with the full error banner."""
+    fairness = pd.read_csv(REPO_ROOT / "results" / "results_fairness.csv")
+    total = len(fairness)
+    total_significant = int(fairness["significant"].sum())
+
+    # Simulate missing summary.csv (404)
+    r = _run_dom_stub(block_url="summary.csv")
+    assert r["results_hidden_after_load"] is False
+    assert r["error_hidden_after_load"] is True
+    assert "Could not load: results/summary.csv (HTTP 404)" in r["status_after_load"]
+    assert "results_fairness.csv" in r["status_after_load"]
+    assert "results_performance.csv" in r["status_after_load"]
+    assert r["summary_unfiltered"] == f"{total:,} of {total:,} rows shown · {total_significant:,} significant"
+
+    # Simulate all bundled files failing (e.g. offline / file:// block)
+    r_all_failed = _run_dom_stub(block_url="results")
+    assert r_all_failed["results_hidden_after_load"] is True
+    assert r_all_failed["error_hidden_after_load"] is False
+    assert "Could not fetch the bundled results/ CSVs" in r_all_failed["error_after_load"]
+

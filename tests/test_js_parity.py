@@ -188,6 +188,72 @@ def test_python_js_profiler_parity_detects_dates_appended_after_numeric_ages(tmp
     assert all(dim["name"] != "age" for dim in python_result["dimensions"])
 
 
+def test_python_js_profiler_parity_handles_scientific_and_nonfinite_ages(tmp_path):
+    """Scientific notation follows pandas' numeric inference; inf/nan stay missing."""
+    csv = tmp_path / "scientific-and-nonfinite-ages.csv"
+    csv.write_text(
+        "age,sex\n"
+        "1e2,F\n"
+        "25,M\n"
+        "40,F\n"
+        "60,M\n"
+        "inf,F\n"
+        "nan,M\n",
+        encoding="utf-8",
+    )
+
+    python_result = profile(pd.read_csv(csv))
+    completed = subprocess.run(
+        ["node", "scripts/engine-js.js", "profile", str(csv)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    javascript_result = json.loads(completed.stdout)
+
+    python_result = dict(python_result)
+    javascript_result = dict(javascript_result)
+    python_result.pop("flags", None)
+    javascript_result.pop("flags", None)
+
+    assert javascript_result == python_result
+    age = next(d for d in python_result["dimensions"] if d["name"] == "age")
+    labels = {group["label"] for group in age["groups"]}
+    assert "75+" in labels
+    assert "inf" not in labels
+    assert "nan" not in labels
+    assert age["missing_pct"] == 0.3333
+
+
+def test_python_js_profiler_handles_overflowing_scientific_age_as_missing(tmp_path):
+    """A value such as 1e400 parses to Infinity in JS and must not become an age group."""
+    csv = tmp_path / "overflow-age.csv"
+    csv.write_text(
+        "age\n"
+        "25\n"
+        "40\n"
+        "60\n"
+        "1e400\n",
+        encoding="utf-8",
+    )
+
+    completed = subprocess.run(
+        ["node", "scripts/engine-js.js", "profile", str(csv)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    javascript_result = json.loads(completed.stdout)
+    age = next(d for d in javascript_result["dimensions"] if d["name"] == "age")
+    labels = {group["label"] for group in age["groups"]}
+
+    assert "inf" not in labels
+    assert "1e400" not in labels
+    assert age["missing_pct"] == 0.25
+
+
 def test_python_js_profiler_parity_rejects_negative_age_sentinels(tmp_path):
     """Signed sentinel ages stay missing in both profiler engines."""
     csv = tmp_path / "negative-age-sentinels.csv"

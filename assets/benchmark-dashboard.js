@@ -152,30 +152,41 @@
   function loadBundled() {
     showError('');
     statusEl.textContent = 'Loading results/results_fairness.csv, results_performance.csv and summary.csv…';
-    Promise.all([
-      fetch('results/results_fairness.csv').then(function (r) {
+    var targets = [
+      { kind: 'fairness', path: 'results/results_fairness.csv' },
+      { kind: 'performance', path: 'results/results_performance.csv' },
+      { kind: 'summary', path: 'results/summary.csv' }
+    ];
+    Promise.allSettled(targets.map(function (t) {
+      return fetch(t.path).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.text();
-      }),
-      fetch('results/results_performance.csv').then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      }),
-      fetch('results/summary.csv').then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-    ]).then(function (texts) {
+      });
+    })).then(function (settled) {
       statusEl.textContent = '';
-      loadText('fairness', texts[0], 'results/results_fairness.csv', true);
-      loadText('performance', texts[1], 'results/results_performance.csv', true);
-      loadText('summary', texts[2], 'results/summary.csv', true);
-      render();
-    }).catch(function (err) {
-      statusEl.textContent = '';
-      showError('Could not fetch the bundled results/ CSVs (' + err.message + '). ' +
-        'This works once the site is served over HTTP - locally over file:// the browser ' +
-        'blocks it. Drop results_fairness.csv / results_performance.csv / summary.csv below instead.');
+      var succeeded = 0;
+      var failed = [];
+      settled.forEach(function (res, i) {
+        var t = targets[i];
+        if (res.status === 'fulfilled') {
+          loadText(t.kind, res.value, t.path, true);
+          succeeded++;
+        } else {
+          failed.push(t.path + ' (' + ((res.reason && res.reason.message) || 'failed') + ')');
+        }
+      });
+      if (succeeded > 0) {
+        if (failed.length) {
+          statusEl.textContent = (statusEl.textContent ? statusEl.textContent + ' · ' : '') +
+            'Could not load: ' + failed.join(', ');
+        }
+        render();
+      } else {
+        showError('Could not fetch the bundled results/ CSVs (' +
+          (failed.join(', ') || 'failed') + '). ' +
+          'This works once the site is served over HTTP - locally over file:// the browser ' +
+          'blocks it. Drop results_fairness.csv / results_performance.csv / summary.csv below instead.');
+      }
     });
   }
 

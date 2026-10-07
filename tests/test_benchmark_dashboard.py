@@ -154,7 +154,15 @@ var fetchMap = {
   'results/results_performance.csv': fs.readFileSync(path.join(REPO, 'results', 'results_performance.csv'), 'utf-8'),
   'results/summary.csv': fs.readFileSync(path.join(REPO, 'results', 'summary.csv'), 'utf-8'),
 };
+var blockUrl = process.argv[3] || '';
 global.fetch = function (url) {
+  if (blockUrl && url.indexOf(blockUrl) !== -1) {
+    return Promise.resolve({
+      ok: false,
+      status: 404,
+      text: function () { return Promise.reject(new Error('HTTP 404')); }
+    });
+  }
   return Promise.resolve({ ok: true, text: function () { return Promise.resolve(fetchMap[url]); } });
 };
 var lastBlob = null;
@@ -207,6 +215,14 @@ var results = {};
   results.last_url_after_first_render = global.__lastUrl;
   results.results_hidden_after_load = elements.benchResults.hidden;
   results.summary_unfiltered = elements.benchSummary.textContent;
+  results.status_after_load = elements.benchStatus.textContent;
+  results.error_after_load = elements.benchError.textContent;
+  results.error_hidden_after_load = elements.benchError.hidden;
+
+  if (elements.benchResults.hidden) {
+    process.stdout.write(JSON.stringify(results));
+    return;
+  }
 
   var auditSelect = createdSelects['audit'];
   results.audit_select_found = !!auditSelect;
@@ -323,9 +339,9 @@ var results = {};
 """
 
 
-def _run_dom_stub(search=""):
+def _run_dom_stub(search="", block_url=""):
     completed = subprocess.run(
-        ["node", "-e", _DOM_STUB, str(REPO_ROOT), search],
+        ["node", "-e", _DOM_STUB, str(REPO_ROOT), search, block_url],
         capture_output=True, text=True, encoding="utf-8", check=True,
     )
     return json.loads(completed.stdout)
@@ -498,3 +514,28 @@ def test_benchmark_dashboard_detect_kind_tells_the_three_result_files_apart():
     out = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True,
                                     encoding="utf-8", check=True).stdout)
     assert out == ["fairness", "performance", "summary"]
+
+
+def test_benchmark_dashboard_bundled_load_partial_failure():
+    """#817: if one bundled CSV fails to load (e.g. 404), loadBundled still
+    loads whichever files succeeded and reports the failed ones in the status line,
+    rather than failing completely with the full error banner."""
+    fairness = pd.read_csv(REPO_ROOT / "results" / "results_fairness.csv")
+    total = len(fairness)
+    total_significant = int(fairness["significant"].sum())
+
+    # Simulate missing summary.csv (404)
+    r = _run_dom_stub(block_url="summary.csv")
+    assert r["results_hidden_after_load"] is False
+    assert r["error_hidden_after_load"] is True
+    assert "Could not load: results/summary.csv (HTTP 404)" in r["status_after_load"]
+    assert "results_fairness.csv" in r["status_after_load"]
+    assert "results_performance.csv" in r["status_after_load"]
+    assert r["summary_unfiltered"] == f"{total:,} of {total:,} rows shown · {total_significant:,} significant"
+
+    # Simulate all bundled files failing (e.g. offline / file:// block)
+    r_all_failed = _run_dom_stub(block_url="results")
+    assert r_all_failed["results_hidden_after_load"] is True
+    assert r_all_failed["error_hidden_after_load"] is False
+    assert "Could not fetch the bundled results/ CSVs" in r_all_failed["error_after_load"]
+

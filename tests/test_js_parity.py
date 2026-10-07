@@ -1039,6 +1039,44 @@ def test_python_js_proxy_correction_parity(tmp_path):
     assert adjust_p_values([0.01, 0.04, 0.03], "holm") == pytest.approx([0.03, 0.06, 0.06])
 
 
+def test_adjust_p_values_js_parity_ties_and_edge_cases():
+    """#820: verify that JS adjustPValues exactly matches Python adjust_p_values
+    for ties (breaking ties stably in input order), single tested pair (m=1), and empty input (m=0)."""
+    from faircode.proxy import adjust_p_values
+
+    cases = [
+        ([], "bonferroni"),
+        ([], "holm"),
+        ([0.042], "bonferroni"),
+        ([0.042], "holm"),
+        ([0.8], "bonferroni"),
+        ([0.8], "holm"),
+        ([0.02, 0.02, 0.04], "holm"),
+        ([0.05, 0.01, 0.01, 0.03], "holm"),
+        ([0.03, 0.03], "bonferroni"),
+        ([0.03, 0.03], "holm"),
+        ([0.1, 0.1, 0.1], "holm"),
+        ([0.01, 0.04, 0.03], "bonferroni"),
+        ([0.01, 0.04, 0.03], "holm"),
+    ]
+
+    script = (
+        "require(process.argv[1]);var E=globalThis.FairCodeProfiler;"
+        "var cases=JSON.parse(process.argv[2]);"
+        "var results=cases.map(function(c){return E.adjustPValues(c[0],c[1]);});"
+        "process.stdout.write(JSON.stringify(results));"
+    )
+    done = subprocess.run(
+        ["node", "-e", script, str(REPO_ROOT / "assets" / "profiler-engine.js"), json.dumps(cases)],
+        capture_output=True, text=True, encoding="utf-8", check=True
+    )
+    js_results = json.loads(done.stdout)
+    for (ps, method), js_res in zip(cases, js_results):
+        py_res = adjust_p_values(ps, method)
+        assert js_res == pytest.approx(py_res), f"Mismatch for {ps} with {method}: JS={js_res}, PY={py_res}"
+
+
+
 def test_web_csv_includes_the_reference_section_like_python(tmp_path):
     """#805: after scoring against a reference baseline, the browser CSV carries
     the same expected/actual/delta/deviation section as faircode's to_csv()."""

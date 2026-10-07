@@ -88,6 +88,61 @@ def test_adjust_p_values_bonferroni_and_holm_known_values():
         adjust_p_values([0.1], "fdr")
 
 
+@pytest.mark.parametrize(
+    "p_values,method,expected",
+    [
+        # Empty set of tested pairs (m=0)
+        ([], "bonferroni", []),
+        ([], "holm", []),
+        # Single tested pair (m=1: adjusted equals raw)
+        ([0.042], "bonferroni", [0.042]),
+        ([0.042], "holm", [0.042]),
+        ([0.8], "bonferroni", [0.8]),
+        ([0.8], "holm", [0.8]),
+        # Ties in Holm: identical p-values break ties stably and monotonicity holds
+        ([0.02, 0.02, 0.04], "holm", [0.06, 0.06, 0.06]),
+        ([0.05, 0.01, 0.01, 0.03], "holm", [0.06, 0.04, 0.04, 0.06]),
+        ([0.03, 0.03], "bonferroni", [0.06, 0.06]),
+        ([0.03, 0.03], "holm", [0.06, 0.06]),
+        ([0.1, 0.1, 0.1], "holm", [0.3, 0.3, 0.3]),
+    ],
+)
+def test_adjust_p_values_ties_and_edge_cases(p_values, method, expected):
+    """#820: covers ties in Holm correction, single tested pair (m=1), and empty input (m=0)."""
+    from faircode.proxy import adjust_p_values
+
+    assert adjust_p_values(p_values, method) == pytest.approx(expected)
+
+
+def test_proxy_hints_zero_testable_pairs_constant_columns():
+    """#820: when all columns are constant, contingency tables are < 2x2 and tested pairs is empty."""
+    pytest.importorskip("scipy")
+    from faircode.proxy import proxy_hints
+
+    df = pd.DataFrame({"col_a": ["const_a"] * 20, "col_b": ["const_b"] * 20, "col_c": ["const_c"] * 20})
+    dims = [{"name": c, "kind": "categorical"} for c in df.columns]
+    for correction in (None, "bonferroni", "holm"):
+        hints = proxy_hints(df, dims, alpha=0.05, correction=correction)
+        assert hints == []
+
+
+def test_proxy_hints_single_testable_pair_adjusted_equals_raw():
+    """#820: with exactly one testable pair (m=1), adjusted p-value equals raw p-value."""
+    pytest.importorskip("scipy")
+    from faircode.proxy import proxy_hints
+
+    df = pd.DataFrame({"col_a": ["m", "f"] * 30, "col_b": ["a", "b"] * 30})
+    dims = [{"name": c, "kind": "categorical"} for c in df.columns]
+    plain = proxy_hints(df, dims, alpha=1.0)
+    assert len(plain) == 1
+    raw_p = plain[0]["p_value"]
+    for correction in ("bonferroni", "holm"):
+        corrected = proxy_hints(df, dims, alpha=1.0, correction=correction)
+        assert len(corrected) == 1
+        assert corrected[0]["p_adjusted"] == pytest.approx(raw_p)
+
+
+
 def _three_dim_frame():
     n = 120
     sex = ["m", "f"] * (n // 2)

@@ -1189,6 +1189,9 @@ def test_held_out_control_adds_rows_collects_specs_and_validates():
       inputs(1)[1].value='';
       container.children[2].children[2].click();       // remove row 3
       out.rows_after_remove=container.children.length;
+      ctl.reset();
+      out.rows_after_reset=container.children.length;
+      out.specs_after_reset=await ctl.collect();
       process.stdout.write(JSON.stringify(out));
     })();
     """
@@ -1201,3 +1204,5 @@ def test_held_out_control_adds_rows_collects_specs_and_validates():
                             {"name": "b.xlsx", "column": "age", "data": "AB:b.xlsx"}]
     assert "needs both a file and a column name" in out["half"]
     assert out["rows_after_remove"] == 2
+    assert out["rows_after_reset"] == 1 and out["specs_after_reset"] == []
+

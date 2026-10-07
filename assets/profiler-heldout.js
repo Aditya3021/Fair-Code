@@ -67,8 +67,17 @@
       return specs;
     }
 
-    return { collect: collect };
+    function reset() {
+      while (container.children.length > 0) {
+        container.removeChild(container.children[0]);
+      }
+      container.innerHTML = '';
+      addRow();
+    }
+
+    return { collect: collect, reset: reset };
   }
+
 
   window.FairCodeHeldOut = { init: init };
 })();

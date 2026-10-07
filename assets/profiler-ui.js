@@ -282,8 +282,10 @@
     var proxyResults = document.getElementById('proxyHintsResults');
     proxyResults.innerHTML = '';
     proxyBlock.hidden = r.dimensions.length < 2;
+    if (heldOutControl && heldOutControl.reset) heldOutControl.reset();
 
     results.hidden = false;
+
     if (scroll) {
       results.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
     }
